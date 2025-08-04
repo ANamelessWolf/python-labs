@@ -212,3 +212,4 @@ spotify-analysis/envs/spotify-env.yml
 # Conda environment folders (if any)
 .env/
 spotify-analysis/spotify_token_cache.json
+spotify-analysis/reports/*.json

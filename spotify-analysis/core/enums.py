@@ -11,3 +11,15 @@ class AuthType(Enum):
     USER = "user"
     CLIENT = "client"
     NONE = "none"
+    
+class TimeRange(Enum):
+    """
+    Enum representing the time range options for top artists/tracks affinity data.
+
+    - SHORT_TERM: Last ~4 weeks
+    - MEDIUM_TERM: Last ~6 months
+    - LONG_TERM: Last ~12 months (default)
+    """
+    SHORT_TERM = "short_term"
+    MEDIUM_TERM = "medium_term"  # Spotify default
+    LONG_TERM = "long_term"    

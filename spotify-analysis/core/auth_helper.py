@@ -33,7 +33,7 @@ class SpotifyAuthHelper:
                 client_id=os.getenv("SPOTIPY_CLIENT_ID"),
                 client_secret=os.getenv("SPOTIPY_CLIENT_SECRET"),
                 redirect_uri=os.getenv("SPOTIPY_REDIRECT_URI"),
-                scope='playlist-read-private',
+                scope='playlist-read-private user-top-read user-library-read',
                 cache_path='spotify_token_cache.json'
             ))
         elif self.auth_type == AuthType.CLIENT:
