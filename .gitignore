@@ -205,3 +205,10 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# Spotify analysis secrets
+spotify-analysis/envs/spotify-env.yml
+
+# Conda environment folders (if any)
+.env/
+spotify-analysis/spotify_token_cache.json
