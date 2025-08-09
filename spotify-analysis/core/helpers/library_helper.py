@@ -14,7 +14,7 @@ from core.helpers.resolve_helpers import (
 from core.helpers.logger_helper import (
     log_api_call, log_error
 )
-from typing import List, Dict
+from typing import List, Dict, Tuple
 import time
 from collections import defaultdict, Counter
 
@@ -69,6 +69,7 @@ def fetch_user_saved_tracks(sp) -> List[Song]:
                 genres = resolve_artist_genres(sp, artist_id, genre_cache)
 
                 all_songs.append(Song(
+                    spotify_id=track_id,
                     title=name,
                     artist=artist_name,
                     play_count=1,
@@ -163,6 +164,7 @@ def fetch_user_playlists_with_tracks(sp) -> List[Song]:
                 genres = resolve_artist_genres(sp, artist_id, genre_cache)
 
                 all_songs.append(Song(
+                    spotify_id=track_id,
                     title=track["name"],
                     artist=artist_name,
                     play_count=1,
@@ -187,27 +189,39 @@ def fetch_user_playlists_and_saved_tracks(sp) -> List[Song]:
         List[Song]: List of unique Song objects
     """
     try:
-        # Get liked songs
         liked_songs = fetch_user_saved_tracks(sp)
-
-        # Get songs from all playlists
         playlist_songs = fetch_user_playlists_with_tracks(sp)
 
-        # Merge and deduplicate by (title, artist)
-        song_map = {}
-        for song in liked_songs + playlist_songs:
-            key = (song.title.lower(), song.artist.lower())
-            if key not in song_map:
-                song_map[key] = song
-            else:
-                # Increment play count if duplicate
-                song_map[key].play_count += song.play_count
+        by_id = {}
+        fallback_seen: set[Tuple[str, str]] = set()
+        merged: List[Song] = []
 
-        return list(song_map.values())
+        for s in liked_songs:
+            if s.spotify_id:
+                if s.spotify_id not in by_id:
+                    by_id[s.spotify_id] = s
+            else:
+                key = (s.title.lower(), s.artist.lower())
+                if key not in fallback_seen:
+                    fallback_seen.add(key)
+                    merged.append(s)
+
+        for s in playlist_songs:
+            if s.spotify_id:
+                if s.spotify_id not in by_id:
+                    by_id[s.spotify_id] = s
+            else:
+                key = (s.title.lower(), s.artist.lower())
+                if key not in fallback_seen:
+                    fallback_seen.add(key)
+                    merged.append(s)
+
+        merged.extend(by_id.values())
+        return merged
 
     except Exception as e:
         log_error(e)
-        raise RuntimeError(f"Error merging liked and playlist tracks: {str(e)}") from e
+        raise RuntimeError(f"Error merging liked and playlist tracks: {str(e)}")
     
 def group_songs_by_artist(songs: List[Song]) -> List[ArtistSummary]:
     """

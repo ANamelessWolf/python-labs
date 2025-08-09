@@ -1,7 +1,44 @@
 import os
 import json
-from typing import List
+from typing import List, Dict
 from core.helpers.logger_helper import log_error
+
+def _project_root_dir() -> str:
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+
+def _ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
+
+def get_cache_dir() -> str:
+    cache_dir = os.path.join(_project_root_dir(), "cache")
+    _ensure_dir(cache_dir)
+    return cache_dir
+
+# ---------- Artist genres file cache ----------
+
+def get_artist_genres_cache_path() -> str:
+    """Returns the absolute path to cache/artist_genres.json."""
+    return os.path.join(get_cache_dir(), "artist_genres.json")
+
+def load_artist_genres_cache() -> Dict[str, List[str]]:
+    """Loads the artist->genres dict from disk. Returns {} if not found."""
+    path = get_artist_genres_cache_path()
+    if not os.path.exists(path):
+        return {}
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            # normalize values to list[str]
+            return {k: (v if isinstance(v, list) else []) for k, v in data.items()}
+    except Exception as e:
+        # If the cache is corrupt, start fresh
+        return {}
+
+def save_artist_genres_cache(cache: Dict[str, List[str]]) -> None:
+    """Persists the artist->genres dict to disk."""
+    path = get_artist_genres_cache_path()
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cache, f, indent=2, ensure_ascii=False)
 
 def get_cache_dir() -> str:
     """
