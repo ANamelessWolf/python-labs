@@ -2,6 +2,7 @@ import os
 import json
 from dataclasses import asdict
 from core.models.listening_report import ListeningReport
+from core.helpers.logger_helper import log_error
 
 def dump_listening_report(report: ListeningReport, filename: str = "listening_report.json") -> str:
     """
@@ -29,4 +30,5 @@ def dump_listening_report(report: ListeningReport, filename: str = "listening_re
 
         return report_path
     except Exception as e:
+        log_error(e)
         raise RuntimeError(f"Failed to write report: {str(e)}") from e

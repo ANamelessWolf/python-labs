@@ -2,6 +2,7 @@ from collections import Counter
 from typing import List, Dict, Tuple
 from core.models.artist_model import ArtistPlayCount
 from core.models.genre_model import GenrePlayCount
+from core.helpers.logger_helper import log_error
 
 
 def group_top_tracks_by_artist(top_tracks_data: dict) -> Dict[str, List[str]]:
@@ -28,6 +29,7 @@ def group_top_tracks_by_artist(top_tracks_data: dict) -> Dict[str, List[str]]:
 
         return artist_track_map
     except Exception as e:
+        log_error(e)
         raise RuntimeError(f"Error while grouping top tracks by artist: {str(e)}") from e
 
 
@@ -68,4 +70,5 @@ def group_artists_and_genres(top_artists_data: dict, track_map: Dict[str, List[s
 
         return artist_play_counts, genre_distribution
     except Exception as e:
+        log_error(e)
         raise RuntimeError(f"Error while grouping artists and genres: {str(e)}") from e
