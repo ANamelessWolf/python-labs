@@ -146,7 +146,7 @@ def get_playlist_cache_file_path(playlist_id: str) -> str:
     Returns:
         str: Absolute path to the JSON cache file
     """
-    filename = f"{playlist_id}_saved_tracks.json"
+    filename = f"{playlist_id}_user_saved_tracks.json"
     return os.path.join(get_cache_dir(), filename)
 
 def load_cached_playlist_tracks(playlist_id: str) -> dict:

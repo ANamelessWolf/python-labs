@@ -10,5 +10,5 @@ class UserLibraryReport:
     top_songs: List[Song]
     artist_distribution: List[ArtistSummary]
     top_artists: List[ArtistSummary]
-    genre_summaries: List[GenreSummary]
+    genre_distribution: List[GenreSummary]
     followed_artists: List[dict]  # Spotify raw artist data

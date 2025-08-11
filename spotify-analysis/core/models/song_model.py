@@ -6,5 +6,5 @@ class Song:
     spotify_id: str
     title: str
     artist: str
-    play_count: int
+    artist_id: str
     genres: List[str]

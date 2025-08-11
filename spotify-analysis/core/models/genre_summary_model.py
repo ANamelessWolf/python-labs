@@ -7,6 +7,5 @@ from core.models.song_model import Song
 class GenreSummary:
     name: str
     song_count: int
-    total_play_count: int
     top_artists: List[ArtistSummary]
     top_songs: List[Song]
