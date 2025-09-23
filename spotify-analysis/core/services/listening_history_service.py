@@ -1,6 +1,9 @@
 from core.helpers.track_helper import group_top_tracks_by_artist, group_artists_and_genres
 from core.models.listening_report import ListeningReport
 from core.enums import TimeRange
+from core.helpers.logger_helper import (
+    log_api_call, log_error
+)
 
 class ListeningHistoryService:
     """
@@ -21,7 +24,9 @@ class ListeningHistoryService:
         Returns:
             ListeningReport: Structured data with artist and genre play counts
         """
+        log_api_call("Getting current user top artist", f"limit={limit}, time_range={time_range.value}")
         top_artists_data = self.sp.current_user_top_artists(limit=limit, time_range=time_range.value)
+        log_api_call("Getting current user top tracks", f"limit={limit}, time_range={time_range.value}")
         top_tracks_data = self.sp.current_user_top_tracks(limit=limit, time_range=time_range.value)
 
         track_map = group_top_tracks_by_artist(top_tracks_data)

@@ -213,3 +213,4 @@ spotify-analysis/envs/spotify-env.yml
 .env/
 spotify-analysis/spotify_token_cache.json
 spotify-analysis/reports/*.json
+spotify-analysis/cache/*.json
