@@ -1,0 +1,12 @@
+name: img-scraper
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pip:
+      - requests>=2.32
+      - beautifulsoup4>=4.12
+      - lxml>=5.2
+      - pydantic>=2.9
+      - tqdm>=4.66

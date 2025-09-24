@@ -1,0 +1,26 @@
+{
+  "startPage": "https://example.com/gallery/",
+  "headers": {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) PythonImgScraper/1.0"
+  },
+  "action": {
+    "tag": "a",
+    "filters": [
+      { "prop": "class", "value": "next" }
+    ],
+    "action": { "type": "click" }
+  },
+  "imageFilter": {
+    "types": ["jpg", "jpeg", "png", "gif"],
+    "minKB": 80
+  },
+  "limit": 100,
+  "request": {
+    "timeoutSeconds": 20,
+    "delaySeconds": 1.0
+  },
+  "output": {
+    "directory": "./output",
+    "naming": "Name_{index}.{ext}"  
+  }
+}
