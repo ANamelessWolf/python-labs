@@ -218,3 +218,7 @@ spotify-analysis/cache/*.json
 # img-scraper
 img-scraper/output/*
 img-scraper/config.json
+
+# convert audio files to flac
+audio-to-flac/input/*
+audio-to-flac/output/*
