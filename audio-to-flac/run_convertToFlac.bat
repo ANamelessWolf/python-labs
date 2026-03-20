@@ -7,7 +7,7 @@ REM === Activate environment ===
 call conda activate convertToFlac
 
 REM === Move to script directory ===
-cd /d <YOUR_PATH>\audio-to-flac
+cd /d Z:\dev\py\python-labs\audio-to-flac
 
 REM === Run script ===
 python convertToFlac.py audios flac
