@@ -222,3 +222,4 @@ img-scraper/config.json
 # convert audio files to flac
 audio-to-flac/input/*
 audio-to-flac/output/*
+mkv-cleaner/instructions.md
