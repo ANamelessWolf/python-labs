@@ -1,6 +1,6 @@
-# MKV Audio Track Selector
+# MKV Audio Track Manager
 
-Select an audio track from an `.mkv` file and generate a new file keeping only that track, along with the original video and subtitles.
+Manage audio tracks from `.mkv` files: select a single track to keep, or remove a specific track while keeping the rest — along with the original video and subtitles.
 
 ---
 
@@ -25,54 +25,90 @@ mkvmerge --version
 
 ---
 
+## Modes
+
+| Mode | Description |
+|---|---|
+| **select** | Keep one audio track, discard the rest |
+| **remove** | Remove one audio track, keep the rest |
+
+---
+
 ## Usage
 
-### Interactive mode
+### Interactive mode (menu)
 
 ```bash
 python clean-mkv-audio.py "file.mkv"
 ```
 
-The script will list the available audio tracks and prompt you to choose one:
+Shows a menu to choose the operation, then lists tracks to pick from:
 
 ```
-Available audio tracks:
+Selecciona una operación:
+  [1] Seleccionar pista de audio (conservar una)
+  [2] Eliminar pista de audio (conservar el resto)
+
+Pistas de audio disponibles:
   [0] Audio - spa - AAC  (track id: 2)
-  [1] Audio - eng - AC3  (track id: 3)
-  [2] Audio - jpn - DTS  (track id: 4)
-
-Choose track number [0-2]:
+  [1] Audio - jpn - AC3  (track id: 3)
+  [2] Audio - ara - DTS  (track id: 4)
 ```
+
+After processing, prompts whether to replace the original file.
+
+### Interactive remove mode
+
+```bash
+python clean-mkv-audio.py "file.mkv" --remove
+```
+
+Skips the menu and goes directly to remove mode. Lists tracks and prompts which one to eliminate.
 
 ### Non-interactive mode
 
 ```bash
-python clean-mkv-audio.py "file.mkv" --track 1
+# Keep only track 0
+python clean-mkv-audio.py "file.mkv" --track 0
+
+# Remove track 2, keep the rest
+python clean-mkv-audio.py "file.mkv" --remove --track 2
+
+# Remove track 2 and replace the original file
+python clean-mkv-audio.py "file.mkv" --remove --track 2 --replace
 ```
 
-Keeps track index `1` directly without prompting.
+### Options
+
+| Option | Description |
+|---|---|
+| `--remove` | Switch to remove mode |
+| `--track N` | Track index (non-interactive, skips prompt) |
+| `--replace` | Replace the original file with the result (no prompt) |
 
 ---
 
 ## BAT Script (Windows)
 
-Drag and drop the MKV file onto `run_clean_mkv_audio.bat`, or run it from the terminal:
+Drag and drop the MKV file onto `run_clean_mkv_audio.bat`, or run from the terminal:
 
 ```bat
 run_clean_mkv_audio.bat "file.mkv"
-run_clean_mkv_audio.bat "file.mkv" 1
+run_clean_mkv_audio.bat "file.mkv" --remove
+run_clean_mkv_audio.bat "file.mkv" --remove --track 2
+run_clean_mkv_audio.bat "file.mkv" --remove --track 2 --replace
+run_clean_mkv_audio.bat "file.mkv" --track 0 --replace
 ```
-
-The second argument is optional and specifies the track index (non-interactive mode).
 
 ---
 
-## Output File
+## Output Files
 
-The generated file is saved in the same folder as the original with the following naming pattern:
+| Mode | Naming pattern |
+|---|---|
+| select | `<name>_audio_<language>_<codec>.mkv` |
+| remove | `<name>_removed_<language>_<codec>.mkv` |
 
-```
-<original_name>_audio_<language>_<codec>.mkv
-```
-
-**Example:** `movie_audio_spa_AAC.mkv`
+**Examples:**
+- Select spa: `movie_audio_spa_AAC.mkv`
+- Remove ara: `movie_removed_ara_DTS.mkv`

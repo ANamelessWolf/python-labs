@@ -1,10 +1,21 @@
 @echo off
 
 IF "%1"=="" (
-    echo Uso: run_clean_mkv_audio.bat archivo.mkv [numero_pista]
+    echo Uso: run_clean_mkv_audio.bat archivo.mkv [opciones]
     echo.
     echo  archivo.mkv   - Ruta al archivo MKV a procesar
-    echo  numero_pista  - (Opcional) Indice de la pista de audio a conservar
+    echo.
+    echo  Opciones:
+    echo    --remove     - Eliminar una pista de audio ^(conservar el resto^)
+    echo    --track N    - Indice de la pista ^(modo no interactivo^)
+    echo    --replace    - Reemplazar el archivo original con el resultado
+    echo.
+    echo  Ejemplos:
+    echo    run_clean_mkv_audio.bat video.mkv
+    echo    run_clean_mkv_audio.bat video.mkv --remove
+    echo    run_clean_mkv_audio.bat video.mkv --remove --track 2
+    echo    run_clean_mkv_audio.bat video.mkv --remove --track 2 --replace
+    echo    run_clean_mkv_audio.bat video.mkv --track 0 --replace
     pause
     exit /b 1
 )
@@ -16,10 +27,6 @@ IF ERRORLEVEL 1 (
     exit /b 1
 )
 
-IF "%2"=="" (
-    python clean-mkv-audio.py %1
-) ELSE (
-    python clean-mkv-audio.py %1 --track %2
-)
+python clean-mkv-audio.py %*
 
 pause
