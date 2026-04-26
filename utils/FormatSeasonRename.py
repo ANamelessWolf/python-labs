@@ -2,7 +2,7 @@ import os
 import re
 
 # Configuración
-DIRECTORIO = r"G:\\Vuze\\Gurren Lagann (2007)\\Season 1"
+DIRECTORIO = r"G:\\Vuze\\NINJA SCROLL (1993-2003) - Complete Movie and Anime TV Series - 1080p DUAL AUDIO x264\\Ninja Scroll The Series (2003)"
 SEASON = 1
 DRY_RUN = False  # Cambia a False para aplicar cambios
 

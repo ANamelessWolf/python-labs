@@ -4,9 +4,10 @@ from pathlib import Path
 # =========================
 # CONFIGURACIÓN
 # =========================
-DIRECTORIO = r"M:\\Anime\\Rainbow (2010)"
-SERIE = "Rainbow"
+DIRECTORIO = r"M:\\tmp\\How a Realist Hero Rebuilt the Kingdom"
+SERIE = "Made in Abyss"
 TEMPORADA = 1
+OFFSET_EPISODE = 13
 DRY_RUN = False  # True = solo muestra cambios, False = renombra
 
 # Extensiones válidas de video
@@ -18,7 +19,7 @@ def is_video_file(file_path: Path) -> bool:
 
 
 def build_new_name(season: int, episode: int, series_name: str, extension: str) -> str:
-    return f"S{season:02d}E{episode:02d} {series_name}{extension}"
+    return f"S{season:02d}E{(episode+OFFSET_EPISODE):02d} {series_name}{extension}"
 
 
 def rename_files(directory: str, series_name: str, season: int, dry_run: bool = True) -> None:
