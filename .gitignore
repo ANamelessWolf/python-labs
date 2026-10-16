@@ -224,3 +224,9 @@ audio-to-flac/input/*
 audio-to-flac/output/*
 mkv-cleaner/instructions.md
 digital-print/output/*
+
+# yt-music-playlist
+yt-music-playlist/config.json
+yt-music-playlist/browser.json
+yt-music-playlist/oauth.json
+yt-music-playlist/cache/*

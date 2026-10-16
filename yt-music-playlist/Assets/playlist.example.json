@@ -1,0 +1,12 @@
+{
+  "name": "Radiohead",
+  "description": "Lo mejor de Radiohead",
+  "privacy": "PRIVATE",
+  "songs": [
+    { "title": "Paranoid Android", "artist": "Radiohead", "album": "OK Computer" },
+    { "title": "Weird Fishes/Arpeggi", "artist": "Radiohead", "album": "In Rainbows" },
+    { "title": "Creep", "artist": "Radiohead", "album": "Pablo Honey" },
+    { "title": "Lift", "artist": "Radiohead", "album": "" },
+    { "title": "True Love Waits", "artist": "Radiohead" }
+  ]
+}
