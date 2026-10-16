@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(where ffmpeg *)",
+      "Bash(conda run *)",
+      "Bash(python z:/dev/py/python-labs/digital-print/nexfil/src/nexfil/__main__.py --help)",
+      "Bash(sed -n '60,90p' z:/dev/py/python-labs/digital-print/Digital-Footprint/digital_footprint/main.py)",
+      "Bash(sed -n '112,160p' z:/dev/py/python-labs/digital-print/Digital-Footprint/digital_footprint/main.py)",
+      "Bash(python -c \"import holehe; import os; print\\(os.path.dirname\\(holehe.__file__\\)\\)\")"
+    ]
+  }
+}
