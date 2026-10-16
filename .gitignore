@@ -223,3 +223,4 @@ img-scraper/config.json
 audio-to-flac/input/*
 audio-to-flac/output/*
 mkv-cleaner/instructions.md
+digital-print/output/*
