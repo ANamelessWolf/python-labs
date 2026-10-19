@@ -230,3 +230,7 @@ yt-music-playlist/config.json
 yt-music-playlist/browser.json
 yt-music-playlist/oauth.json
 yt-music-playlist/cache/*
+
+# tmdb-updates
+tmdb-updates/config/settings.json
+tmdb-updates/data/*
