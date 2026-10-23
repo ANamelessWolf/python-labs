@@ -166,7 +166,7 @@ def render_tv_status(console: Console, library) -> None:
 
 # ---------------------------------------------------------------- status -sn
 
-def render_series_detail(console: Console, series: dict, today: date) -> None:
+def series_tree(series: dict) -> Tree:
     root_label = series_header(series, show_tag=True)
     meta = Text()
     if series.get("tmdbId"):
@@ -175,7 +175,20 @@ def render_series_detail(console: Console, series: dict, today: date) -> None:
             meta.append(f" · {series['tmdbName']}", style="grey50 italic")
         meta.append(" · ", style="grey50")
     meta.append(f"{series['path']} · scan {fmt_timestamp(series.get('lastScan'))}", style="grey50")
-    tree = Tree(Group(root_label, meta), guide_style="bright_blue")
+    return Tree(Group(root_label, meta), guide_style="bright_blue")
+
+
+def season_node_label(season: dict) -> Text:
+    label = Text(f"{season_label(season)} ")
+    label.append_text(tag_text(season["tag"]))
+    label.append(f"  {season_counts(season)}", style="grey50")
+    if season["tag"] in (MISSING, UPCOMING) and season.get("airDate"):
+        label.append(f"  · estreno {fmt_date(season['airDate'])}", style="grey50")
+    return label
+
+
+def render_series_detail(console: Console, series: dict, today: date) -> None:
+    tree = series_tree(series)
 
     if series.get("looseFiles"):
         loose = tree.add(Text("⚠ Archivos sueltos en la raíz (NAMING_ERROR) — muévelos a 'Season XX'",
@@ -184,13 +197,7 @@ def render_series_detail(console: Console, series: dict, today: date) -> None:
             loose.add(Text(name, style="magenta"))
 
     for season in series.get("seasons", []):
-        label = Text(f"{season_label(season)} ")
-        label.append_text(tag_text(season["tag"]))
-        label.append(f"  {season_counts(season)}", style="grey50")
-        if season["tag"] in (MISSING, UPCOMING) and season.get("airDate"):
-            label.append(f"  · estreno {fmt_date(season['airDate'])}", style="grey50")
-        node = tree.add(label)
-
+        node = tree.add(season_node_label(season))
         for name in season.get("namingErrors", []):
             node.add(Text(f"✎ {name}", style="magenta"))
         if season["tag"] in (INCOMPLETE, NAMING_ERROR, UPCOMING):
@@ -214,6 +221,55 @@ def episode_line(ep: dict, today: date) -> Text:
     if ep.get("name"):
         line.append(f"  {ep['name']}", style="grey50 italic")
     return line
+
+
+# ---------------------------------------------------------------- missing
+
+def missing_seasons(series: dict, today: date) -> list[tuple[dict, list[dict]]]:
+    """Temporadas con algo ya emitido que no tienes: (temporada, episodios faltantes).
+    Una temporada MISSING completa va sin episodios (se muestra en una sola linea)."""
+    result = []
+    for season in series.get("seasons", []):
+        if season["tag"] == MISSING:
+            result.append((season, []))
+        elif season["tag"] not in (COMPLETE, EXTRA):
+            episodes = [ep for ep in season["episodes"] if live_state(ep, today) == EP_MISSING]
+            if episodes:
+                result.append((season, episodes))
+    return result
+
+
+def render_missing(console: Console, library, series_list: list[dict], today: date) -> None:
+    print_banner(console, "🧩  Episodios faltantes", library)
+    total_eps = total_seasons = shown = 0
+    current_lib = None
+    for series in series_list:
+        seasons = missing_seasons(series, today)
+        if not seasons:
+            continue
+        if len(series_list) > 1 and series["library"] != current_lib:
+            current_lib = series["library"]
+            console.print()
+            console.rule(f"[bold bright_blue]{current_lib}", align="left", style="bright_blue")
+        shown += 1
+        tree = series_tree(series)
+        for season, episodes in seasons:
+            node = tree.add(season_node_label(season))
+            if episodes:
+                total_eps += len(episodes)
+                for ep in episodes:
+                    node.add(episode_line(ep, today))
+            else:
+                total_seasons += 1
+                total_eps += season["tmdbEpisodes"]
+        console.print(tree)
+
+    if not shown:
+        console.print(Text("No falta nada. 🎉", style="green"))
+        return
+    console.print()
+    console.print(Text(f"{total_eps} episodios faltantes en {shown} series "
+                       f"({total_seasons} temporadas completas sin descargar)", style="grey62"))
 
 
 # ---------------------------------------------------------------- updates

@@ -234,3 +234,8 @@ yt-music-playlist/cache/*
 # tmdb-updates
 tmdb-updates/config/settings.json
 tmdb-updates/data/*
+
+# nyaa-scrapper
+nyaa-scrapper/config/settings.json
+nyaa-scrapper/output/*
+!nyaa-scrapper/output/.gitkeep

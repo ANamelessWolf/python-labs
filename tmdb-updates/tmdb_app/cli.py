@@ -168,6 +168,16 @@ def cmd_updates() -> None:
     report.render_updates(console, library, today, months_ago(today, 2), today + timedelta(days=7))
 
 
+def cmd_missing(name: str | None = None) -> None:
+    library = Library()
+    if name:
+        series_list = [find_series(library, name)]
+    else:
+        require_data(library)
+        series_list = library.sorted_series()
+    report.render_missing(console, library, series_list, date.today())
+
+
 def cmd_list() -> None:
     library = Library()
     require_data(library)
@@ -220,11 +230,13 @@ MENU = [
     ("1", "Estado de todas las series", "status -tv"),
     ("2", "Detalle de una serie", "status -sn"),
     ("3", "Próximos episodios / pendientes", "updates"),
-    ("4", "Listar series", "list"),
-    ("5", "Scan (omite series terminadas y completas)", "scan"),
-    ("6", "Scan completo (todas)", "scan --full"),
-    ("7", "Scan de una serie", "scan -sn"),
-    ("8", "Fix: corregir tmdbId de una serie", "fix -sn"),
+    ("4", "Episodios faltantes por serie", "missing"),
+    ("5", "Episodios faltantes de una serie", "missing -sn"),
+    ("6", "Listar series", "list"),
+    ("7", "Scan (omite series terminadas y completas)", "scan"),
+    ("8", "Scan completo (todas)", "scan --full"),
+    ("9", "Scan de una serie", "scan -sn"),
+    ("10", "Fix: corregir tmdbId de una serie", "fix -sn"),
     ("0", "Salir", ""),
 ]
 
@@ -248,14 +260,18 @@ def run_menu(settings_loader) -> None:
             elif choice == "3":
                 cmd_updates()
             elif choice == "4":
-                cmd_list()
+                cmd_missing()
             elif choice == "5":
-                cmd_scan(settings_loader())
+                cmd_missing(Prompt.ask("Serie"))
             elif choice == "6":
-                cmd_scan(settings_loader(), full=True)
+                cmd_list()
             elif choice == "7":
-                cmd_scan(settings_loader(), Prompt.ask("Serie"))
+                cmd_scan(settings_loader())
             elif choice == "8":
+                cmd_scan(settings_loader(), full=True)
+            elif choice == "9":
+                cmd_scan(settings_loader(), Prompt.ask("Serie"))
+            elif choice == "10":
                 name = Prompt.ask("Serie")
                 mode = Prompt.ask("¿Usar tmdbId del JSON (j), escribir uno (i) o buscar (b)?",
                                   choices=["j", "i", "b"], default="j")
@@ -279,6 +295,8 @@ def build_parser() -> argparse.ArgumentParser:
     group.add_argument("-sn", metavar="NOMBRE", help="Detalle de una serie")
 
     sub.add_parser("updates", help="Episodios faltantes o por salir (hoy -2 meses .. hoy +1 semana)")
+    missing = sub.add_parser("missing", help="Solo los episodios ya emitidos que te faltan, por serie")
+    missing.add_argument("-sn", metavar="NOMBRE", help="Solo esta serie")
     sub.add_parser("list", help="Lista de series con su status de TMDB")
 
     scan = sub.add_parser("scan", help="Escanea la biblioteca y actualiza data/library.json")
@@ -302,6 +320,8 @@ def main(argv: list[str] | None = None) -> int:
             cmd_status(args.sn)
         elif args.command == "updates":
             cmd_updates()
+        elif args.command == "missing":
+            cmd_missing(args.sn)
         elif args.command == "list":
             cmd_list()
         elif args.command == "scan":

@@ -32,6 +32,8 @@ Llena `config/settings.json`:
 | `TMDB status -tv` | Resumen de todas las series |
 | `TMDB status -sn "South Park"` | Árbol de temporadas y episodios faltantes / próximos |
 | `TMDB updates` | Episodios faltantes o por salir entre hoy −2 meses y hoy +1 semana |
+| `TMDB missing` | Solo lo ya emitido que te falta, en árbol por serie (temporadas `MISSING` en una línea) |
+| `TMDB missing -sn "Harley Quinn"` | Igual, para una sola serie |
 | `TMDB list` | Lista de series con status de TMDB, tmdbId y nombre en TMDB si difiere de la carpeta |
 | `TMDB fix -sn "Serie"` | Recarga la serie usando el `tmdbId` guardado en el JSON |
 | `TMDB fix -sn "Serie" --id 1198654` | Asigna ese tmdbId y recarga |
