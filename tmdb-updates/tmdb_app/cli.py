@@ -58,7 +58,7 @@ def make_client(settings: Settings) -> TmdbClient:
 
 
 def process_series(client: TmdbClient, path: Path, library_root: Path, tmdb_id: int | None,
-                   existing: dict | None, today: date) -> dict:
+                   existing: dict | None, today: date, max_season: int | None = None) -> dict:
     """Escanea una carpeta y la cruza con TMDB. Usa el tmdbId guardado si existe."""
     try:
         local = scan_local_series(path, library_root)
@@ -72,14 +72,14 @@ def process_series(client: TmdbClient, path: Path, library_root: Path, tmdb_id: 
         if tmdb_id is None:
             match = pick_match(client.search_tv(local.title, local.year), local.title, local.year)
             if match is None:
-                record = base_record(local)
+                record = base_record(local, max_season)
                 record["error"] = f"Sin resultados en TMDB para '{local.title}'. Asigna tmdbId y usa 'fix'."
                 return record
             tmdb_id = match["id"]
-        return evaluate(local, client.get_tv(tmdb_id), today)
+        return evaluate(local, client.get_tv(tmdb_id), today, max_season)
     except TmdbError as exc:
         # Un fallo de red no debe borrar lo que ya sabiamos de la serie
-        record = dict(existing) if existing and existing.get("seasons") else base_record(local)
+        record = dict(existing) if existing and existing.get("seasons") else base_record(local, max_season)
         record["tmdbId"] = tmdb_id
         if not record.get("seasons"):
             record["tag"] = ERROR
@@ -125,7 +125,8 @@ def cmd_scan(settings: Settings, name: str | None = None, full: bool = False) ->
             task = progress.add_task("Escaneando", total=len(jobs))
             futures = {
                 pool.submit(process_series, client, path, root,
-                            (existing or {}).get("tmdbId"), existing, today): path
+                            (existing or {}).get("tmdbId"), existing, today,
+                            (existing or {}).get("maxSeason")): path
                 for path, root, existing in jobs
             }
             for future in as_completed(futures):
@@ -197,12 +198,36 @@ def cmd_fix(settings: Settings, name: str, tmdb_id: int | None = None, search: b
 
     with console.status(f"Consultando TMDB {tmdb_id}…"):
         record = process_series(client, Path(series["path"]), Path(series["library"]), int(tmdb_id),
-                                None, date.today())
+                                None, date.today(), series.get("maxSeason"))
     if record.get("error"):
         raise AppError(f"No se aplicó el fix, la serie queda como estaba: {record['error']}")
     library.series[record["path"]] = record
     library.save(touch_scan=False)
     console.print(f"[green]✔ {series['folder']} actualizado con TMDB {tmdb_id}.\n")
+    report.render_series_detail(console, record, date.today())
+
+
+def cmd_unfollow(settings: Settings, name: str, max_season: int | None) -> None:
+    """Limita la serie hasta max_season (None = seguir todas otra vez) y la vuelve a escanear."""
+    if max_season is not None and max_season < 1:
+        raise AppError("La temporada debe ser 1 o mayor.")
+    library = Library()
+    series = find_series(library, name)
+    if not series.get("tmdbId"):
+        raise AppError(f"'{series['folder']}' no tiene tmdbId. Usa primero: TMDB fix -sn \"{series['folder']}\" --search")
+
+    with console.status(f"Actualizando {series['folder']}…"):
+        record = process_series(make_client(settings), Path(series["path"]), Path(series["library"]),
+                                int(series["tmdbId"]), series, date.today(), max_season)
+    if record.get("error"):
+        raise AppError(f"No se aplicó el cambio, la serie queda como estaba: {record['error']}")
+    library.series[record["path"]] = record
+    library.save(touch_scan=False)
+    if max_season is None:
+        console.print(f"[green]✔ {series['folder']}: se vuelven a revisar todas las temporadas.\n")
+    else:
+        console.print(f"[green]✔ {series['folder']}: solo se revisa hasta la temporada {max_season}; "
+                      f"las posteriores se ignoran.\n")
     report.render_series_detail(console, record, date.today())
 
 
@@ -237,6 +262,7 @@ MENU = [
     ("8", "Scan completo (todas)", "scan --full"),
     ("9", "Scan de una serie", "scan -sn"),
     ("10", "Fix: corregir tmdbId de una serie", "fix -sn"),
+    ("11", "Unfollow: revisar una serie solo hasta cierta temporada", "unfollow -sn"),
     ("0", "Salir", ""),
 ]
 
@@ -277,6 +303,10 @@ def run_menu(settings_loader) -> None:
                                   choices=["j", "i", "b"], default="j")
                 tmdb_id = IntPrompt.ask("tmdbId") if mode == "i" else None
                 cmd_fix(settings_loader(), name, tmdb_id, search=mode == "b")
+            elif choice == "11":
+                name = Prompt.ask("Serie")
+                season = IntPrompt.ask("Última temporada a revisar (0 = todas)")
+                cmd_unfollow(settings_loader(), name, season or None)
         except (AppError, ConfigError, TmdbError) as exc:
             console.print(f"[red]✘ {exc}")
         Prompt.ask("[grey50]Enter para continuar", default="", show_default=False)
@@ -308,6 +338,12 @@ def build_parser() -> argparse.ArgumentParser:
     fix_source = fix.add_mutually_exclusive_group()
     fix_source.add_argument("--id", type=int, help="Asignar este tmdbId")
     fix_source.add_argument("--search", action="store_true", help="Buscar en TMDB y elegir de una lista")
+
+    unfollow = sub.add_parser("unfollow", help="Revisa una serie solo hasta cierta temporada")
+    unfollow.add_argument("-sn", metavar="NOMBRE", required=True, help="Serie a limitar")
+    unfollow_target = unfollow.add_mutually_exclusive_group(required=True)
+    unfollow_target.add_argument("-s", type=int, metavar="TEMPORADA", help="Última temporada a revisar")
+    unfollow_target.add_argument("--all", action="store_true", help="Quitar el límite y revisar todas")
     return parser
 
 
@@ -328,6 +364,8 @@ def main(argv: list[str] | None = None) -> int:
             cmd_scan(load_settings(), args.sn, args.full)
         elif args.command == "fix":
             cmd_fix(load_settings(), args.sn, args.id, args.search)
+        elif args.command == "unfollow":
+            cmd_unfollow(load_settings(), args.sn, None if args.all else args.s)
     except (AppError, ConfigError, TmdbError) as exc:
         console.print(f"[red]✘ {exc}")
         return 1

@@ -38,6 +38,8 @@ Llena `config/settings.json`:
 | `TMDB fix -sn "Serie"` | Recarga la serie usando el `tmdbId` guardado en el JSON |
 | `TMDB fix -sn "Serie" --id 1198654` | Asigna ese tmdbId y recarga |
 | `TMDB fix -sn "Serie" --search` | Busca en TMDB y te deja elegir de una lista |
+| `TMDB unfollow -sn "Simpsons" -s 14` | Revisa la serie solo hasta la temporada 14; las posteriores se ignoran en scans y reportes. Si queda `OK` se trata como terminada (el scan normal la omite) |
+| `TMDB unfollow -sn "Simpsons" --all` | Quita el límite y vuelve a revisar todas las temporadas |
 
 `-sn` acepta coincidencias parciales y no distingue mayúsculas; si varias series coinciden, te pregunta cuál.
 

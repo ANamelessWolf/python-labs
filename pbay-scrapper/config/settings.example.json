@@ -1,0 +1,8 @@
+{
+  "SITE": "https://thepiratebay.bond",
+  "SERIE": "Helluva Boss",
+  "QUERY": "Helluva Boss SXXEXX",
+  "SEASON": [
+    { "INDEX": 3, "START": 1, "END": 8 }
+  ]
+}

@@ -1,7 +1,7 @@
 # Nyaa Scrapper
 
-Busca cada episodio de una serie en [nyaa.si](https://nyaa.si) y guarda el magnet link del **primer resultado**
-en `output/<serie en camelCase>.txt`, uno por línea.
+Busca cada episodio de una serie en [nyaa.si](https://nyaa.si) y guarda el magnet link en
+`output/<serie en camelCase>.txt`, uno por línea. Si hay varios resultados te pregunta cuál agregar.
 
 ## Instalación
 
@@ -36,19 +36,27 @@ copy config\settings.example.json config\settings.json
 
 | Comando | Qué hace |
 |---|---|
-| `NYAA` | Usa `config\settings.json` |
+| `NYAA` | Usa `config\settings.json`; si hay varios resultados muestra una tabla y pregunta cuál agregar |
 | `NYAA -c ruta\otra.json` | Usa otro archivo de configuración |
+| `NYAA -a` (o `--auto`) | No pregunta: toma siempre el primer resultado |
+| `NYAA -w` (o `--wizard`) | Wizard: pregunta sitio, serie, query, temporada inicial y final (vacía = solo una) y el rango de episodios de cada temporada; guarda `settings.json` y busca. Acepta `-a` |
+| `NYAA -q "[ToonsHub] Thousand-Year Blood War S01E01"` | Una sola búsqueda; el magnet elegido se agrega a `output\general.txt`. Acepta `-a` |
+| `NYAA -h` | Ayuda con todos los modos, opciones y ejemplos |
 | `NYAA --delay 2` | Espera 2 s entre búsquedas (default 1) |
+
+La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. Al elegir: escribe el número de la fila,
+`Enter` toma la 1 y `0` omite el episodio.
 
 ## Estados en consola
 
 | Estado | Significado |
 |---|---|
-| `[Copied]` | Se encontró y se guardó el magnet |
-| `[Saved]` | El magnet ya estaba en el archivo de una ejecución anterior; no se repite |
-| `[Duplicate]` | El primer resultado es el mismo magnet de un episodio anterior (p. ej. un batch); no se repite en el archivo |
+| `[Copied]` | Se guardó el magnet elegido (o el único resultado) |
+| `[Saved]` | Uno de los resultados ya está en el archivo (de esta u otra ejecución, p. ej. un batch); no pregunta otra vez |
+| `[Skipped]` | Elegiste `0` |
 | `[Not Found]` | La búsqueda no tuvo resultados |
 | `[Error]` | Falló la petición HTTP |
 
-El archivo de salida nunca se borra: si vuelves a correr con la misma `SERIE` (por ejemplo con otro `QUERY`),
-los magnets nuevos se anexan al final. Para empezar de cero, borra el `.txt`.
+El archivo nunca se borra: si vuelves a correr con la misma `SERIE` (por ejemplo con otro `QUERY`), los magnets
+nuevos se anexan al final, y cada elección se guarda en cuanto la haces (si cancelas con `Ctrl+C` no se pierde lo
+ya elegido). Para empezar de cero, borra el `.txt`.

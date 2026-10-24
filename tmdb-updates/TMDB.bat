@@ -8,6 +8,7 @@ REM   TMDB status -sn "Serie"   -> detalle de una serie
 REM   TMDB updates              -> faltantes / proximos (hoy -2 meses .. +1 semana)
 REM   TMDB list                 -> lista de series
 REM   TMDB fix -sn "Serie"      -> recarga con el tmdbId del JSON (--id N / --search)
+REM   TMDB unfollow -sn "Serie" -s 14 -> revisa solo hasta la temporada 14 (--all quita el limite)
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\tmdb-updates"

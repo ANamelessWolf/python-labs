@@ -154,11 +154,16 @@ def episode_state(have: bool, in_tmdb: bool, air_date: date | None, today: date)
     return EP_MISSING if air_date <= today else EP_AVAILABLE
 
 
-def evaluate(local: LocalSeries, tv: dict, today: date) -> dict:
-    """Combina la carpeta local con los datos de TMDB y genera el registro de la serie."""
-    tmdb_seasons = {n: data for n, data in tv.get("season_data", {}).items() if n > 0}
+def in_focus(number: int, max_season: int | None) -> bool:
+    return number > 0 and (max_season is None or number <= max_season)
+
+
+def evaluate(local: LocalSeries, tv: dict, today: date, max_season: int | None = None) -> dict:
+    """Combina la carpeta local con los datos de TMDB y genera el registro de la serie.
+    Con max_season se ignoran las temporadas posteriores (comando 'unfollow')."""
+    tmdb_seasons = {n: data for n, data in tv.get("season_data", {}).items() if in_focus(n, max_season)}
     season_air = {s["season_number"]: s.get("air_date") for s in tv.get("seasons", [])}
-    local_seasons = {n: s for n, s in local.seasons.items() if n > 0}
+    local_seasons = {n: s for n, s in local.seasons.items() if in_focus(n, max_season)}
 
     seasons = []
     for number in sorted(set(tmdb_seasons) | set(local_seasons)):
@@ -216,19 +221,21 @@ def evaluate(local: LocalSeries, tv: dict, today: date) -> dict:
         series_tag = INCOMPLETE
 
     status = tv.get("status")
+    # Si ya no sigues la serie mas alla de max_season, lo que queda nunca cambia: se trata como terminada
+    finished = series_tag == OK and (status in FINISHED_STATUSES or max_season is not None)
     return {
-        **base_record(local),
+        **base_record(local, max_season),
         "tmdbId": tv["id"],
         "tmdbName": tv.get("name"),
         "status": status,
         "firstAirDate": tv.get("first_air_date"),
         "tag": series_tag,
-        "finished": status in FINISHED_STATUSES and series_tag == OK,
+        "finished": finished,
         "seasons": seasons,
     }
 
 
-def base_record(local: LocalSeries) -> dict:
+def base_record(local: LocalSeries, max_season: int | None = None) -> dict:
     return {
         "folder": local.folder,
         "path": str(local.path),
@@ -239,6 +246,7 @@ def base_record(local: LocalSeries) -> dict:
         "firstAirDate": None,
         "tag": NOT_FOUND,
         "finished": False,
+        "maxSeason": max_season,
         "lastScan": datetime.now().isoformat(timespec="seconds"),
         "error": None,
         "looseFiles": local.loose_files,

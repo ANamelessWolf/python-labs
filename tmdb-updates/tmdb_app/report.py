@@ -116,6 +116,8 @@ def series_header(series: dict, show_tag: bool) -> Text:
     if show_tag:
         line.append(" ")
         line.append_text(tag_text(series["tag"]))
+    if series.get("maxSeason"):
+        line.append(f"  ⏹ hasta T{series['maxSeason']}", style="grey50")
     if series.get("error"):
         line.append(f"  {series['error']}", style="red")
     return line

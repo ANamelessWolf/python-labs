@@ -1,7 +1,11 @@
 @echo off
 REM Wrapper de nyaa.py. Puedes copiarlo a Z:\bin: usa rutas absolutas.
-REM   NYAA                        -> usa config\settings.json
+REM   NYAA                        -> usa config\settings.json (pregunta cual agregar si hay varios)
 REM   NYAA -c "ruta\otra.json"    -> usa otro archivo de configuracion
+REM   NYAA -a  (o --auto)         -> no pregunta: toma siempre el primer resultado
+REM   NYAA -w  (o --wizard)       -> configura settings.json paso a paso y busca
+REM   NYAA -q "texto"             -> una sola busqueda, se agrega a output\general.txt
+REM   NYAA -h                     -> ayuda con todos los comandos
 REM   NYAA --delay 2              -> segundos entre busquedas (default 1)
 
 setlocal

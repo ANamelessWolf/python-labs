@@ -239,3 +239,8 @@ tmdb-updates/data/*
 nyaa-scrapper/config/settings.json
 nyaa-scrapper/output/*
 !nyaa-scrapper/output/.gitkeep
+
+# pbay-scrapper
+pbay-scrapper/config/settings.json
+pbay-scrapper/output/*
+!pbay-scrapper/output/.gitkeep
