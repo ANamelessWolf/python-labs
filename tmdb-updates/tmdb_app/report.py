@@ -73,6 +73,16 @@ def fmt_timestamp(value: str | None) -> str:
         return value
 
 
+def fmt_size(size: int | None) -> str:
+    """Bytes -> '12.3 GB' / '850.0 MB' (base 1024, como lo muestra Windows)."""
+    value = float(size or 0)
+    for unit in ("B", "KB", "MB", "GB"):
+        if value < 1024:
+            return f"{value:.0f} {unit}" if unit == "B" else f"{value:.1f} {unit}"
+        value /= 1024
+    return f"{value:.2f} TB"
+
+
 def tag_text(tag: str, icon: bool = True) -> Text:
     label = f"{TAG_ICONS.get(tag, '')} {tag}" if icon else tag
     return Text(label.strip(), style=TAG_STYLES.get(tag, "white"))
@@ -154,13 +164,18 @@ def render_tv_status(console: Console, library) -> None:
             console.rule(f"[bold bright_blue]{current_lib}", align="left", style="bright_blue")
         tags = visible_tags(series)
         collapsed = len(tags) <= 1 and not series.get("looseFiles")
-        console.print(series_header(series, show_tag=collapsed))
+        header = series_header(series, show_tag=collapsed)
+        if series.get("sizeBytes") is not None:
+            header.append(f" [{fmt_size(series['sizeBytes'])}]", style="cyan")
+        console.print(header)
         if collapsed:
             continue
         if series.get("looseFiles"):
             console.print(Text(f"    ⚠ {len(series['looseFiles'])} archivo(s) sueltos en la raíz", style="magenta"))
         for season in series["seasons"]:
-            line = Text(f"    {season_label(season)} ")
+            line = Text(f"    {season_label(season)}  ")
+            size = f"[{fmt_size(season['sizeBytes'])}]" if season.get("sizeBytes") else ""
+            line.append(f"{size:<10} ", style="cyan")
             line.append_text(tag_text(season["tag"], icon=False))
             line.append(f"  {season_counts(season)}", style="grey50")
             console.print(line)
@@ -177,6 +192,8 @@ def series_tree(series: dict) -> Tree:
             meta.append(f" · {series['tmdbName']}", style="grey50 italic")
         meta.append(" · ", style="grey50")
     meta.append(f"{series['path']} · scan {fmt_timestamp(series.get('lastScan'))}", style="grey50")
+    if series.get("sizeBytes") is not None:
+        meta.append(f"  ·  Size {fmt_size(series['sizeBytes'])}", style="grey50")
     return Tree(Group(root_label, meta), guide_style="bright_blue")
 
 
@@ -184,6 +201,8 @@ def season_node_label(season: dict) -> Text:
     label = Text(f"{season_label(season)} ")
     label.append_text(tag_text(season["tag"]))
     label.append(f"  {season_counts(season)}", style="grey50")
+    if season.get("sizeBytes"):
+        label.append(f"  [{fmt_size(season['sizeBytes'])}]", style="cyan")
     if season["tag"] in (MISSING, UPCOMING) and season.get("airDate"):
         label.append(f"  · estreno {fmt_date(season['airDate'])}", style="grey50")
     return label

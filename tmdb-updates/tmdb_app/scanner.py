@@ -1,4 +1,5 @@
 """Escaneo de carpetas locales y comparacion contra los datos de TMDB."""
+import os
 import re
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -30,6 +31,7 @@ class LocalSeason:
     folder: str
     episodes: set[int] = field(default_factory=set)
     naming_errors: list[str] = field(default_factory=list)
+    size: int = 0
 
 
 @dataclass
@@ -39,6 +41,7 @@ class LocalSeries:
     library: Path
     seasons: dict[int, LocalSeason] = field(default_factory=dict)
     loose_files: list[str] = field(default_factory=list)
+    size: int = 0
 
     @property
     def title(self) -> str:
@@ -54,6 +57,24 @@ def is_video(path: Path) -> bool:
     return path.is_file() and path.suffix.lower() in VIDEO_EXTENSIONS
 
 
+def dir_size(path: Path) -> int:
+    """Suma en bytes de todos los archivos bajo 'path' (recursivo). Ignora lo que no se pueda leer."""
+    total = 0
+    try:
+        with os.scandir(path) as entries:
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        total += dir_size(Path(entry.path))
+                    elif entry.is_file(follow_symlinks=False):
+                        total += entry.stat(follow_symlinks=False).st_size
+                except OSError:
+                    continue
+    except OSError:
+        pass
+    return total
+
+
 def parse_episodes(filename: str) -> tuple[int, list[int]] | None:
     """'Show - S01E02E03 - x.mkv' -> (1, [2, 3]); 'S01E01-E03' -> (1, [1, 2, 3])."""
     match = EPISODE_RE.search(filename)
@@ -67,7 +88,7 @@ def parse_episodes(filename: str) -> tuple[int, list[int]] | None:
 
 
 def scan_season_folder(number: int, folder: Path) -> LocalSeason:
-    season = LocalSeason(number=number, folder=folder.name)
+    season = LocalSeason(number=number, folder=folder.name, size=dir_size(folder))
     for file in sorted(folder.iterdir()):
         if not is_video(file):
             continue
@@ -82,7 +103,7 @@ def scan_season_folder(number: int, folder: Path) -> LocalSeason:
 
 
 def scan_local_series(path: Path, library: Path) -> LocalSeries:
-    series = LocalSeries(folder=path.name, path=path, library=library)
+    series = LocalSeries(folder=path.name, path=path, library=library, size=dir_size(path))
     for entry in sorted(path.iterdir()):
         if entry.is_dir():
             if SPECIALS_DIR_RE.match(entry.name):
@@ -96,6 +117,7 @@ def scan_local_series(path: Path, library: Path) -> LocalSeries:
                 target = series.seasons[number]
                 target.episodes |= scanned.episodes
                 target.naming_errors += scanned.naming_errors
+                target.size += scanned.size
                 target.folder += f" + {entry.name}"
             else:
                 series.seasons[number] = scanned
@@ -206,6 +228,7 @@ def evaluate(local: LocalSeries, tv: dict, today: date, max_season: int | None =
             "airDate": season_air.get(number),
             "tmdbEpisodes": len(tmdb_eps),
             "localEpisodes": len(have & set(tmdb_eps)),
+            "sizeBytes": loc.size if loc else 0,
             "namingErrors": loc.naming_errors if loc else [],
             "episodes": episodes,
         })
@@ -250,5 +273,6 @@ def base_record(local: LocalSeries, max_season: int | None = None) -> dict:
         "lastScan": datetime.now().isoformat(timespec="seconds"),
         "error": None,
         "looseFiles": local.loose_files,
+        "sizeBytes": local.size,
         "seasons": [],
     }
