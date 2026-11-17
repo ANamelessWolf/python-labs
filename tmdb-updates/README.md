@@ -66,6 +66,21 @@ Una *serie* tiene `name`, `path`, `library`, `libraryPath`, `status` (de TMDB), 
 (`number`, `folder`, `tag`, `localEpisodes`, `tmdbEpisodes`, `airDate`, `sizeBytes`, `size`, `namingErrors` y, en el
 detalle, `episodes`: `[{code, number, name, airDate, daysFromToday, state}]`).
 
+## Código
+
+`TMDB.bat` llama a `tmdb.py`, que solo arranca `tmdb_app.cli.main`.
+
+| Archivo | Qué tiene |
+|---|---|
+| `tmdb.py` | Punto de entrada (lo llama `TMDB.bat`) |
+| `tmdb_app/cli.py` | Subcomandos (`cmd_scan`, `cmd_status`, `cmd_updates`…), menú interactivo y `main` |
+| `tmdb_app/config.py` | Rutas y lectura de `config/settings.json` |
+| `tmdb_app/tmdb_client.py` | Cliente de la API de TMDB |
+| `tmdb_app/scanner.py` | Escaneo de carpetas locales y comparación con TMDB (tags) |
+| `tmdb_app/store.py` | Lectura y escritura de `data/library.json` |
+| `tmdb_app/report.py` | Reportes de consola con rich |
+| `tmdb_app/export.py` | Salida en JSON (`--json`): los mismos datos que los reportes |
+
 ## Estructura esperada
 
 ```

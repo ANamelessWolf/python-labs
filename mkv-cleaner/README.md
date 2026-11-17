@@ -23,6 +23,12 @@ Verify the installation:
 mkvmerge --version
 ```
 
+### 3. FFmpeg (only for `merge_mkv.py`)
+
+```bash
+conda install -c conda-forge ffmpeg
+```
+
 ---
 
 ## Modes
@@ -112,3 +118,44 @@ run_clean_mkv_audio.bat "file.mkv" --track 0 --replace
 **Examples:**
 - Select spa: `movie_audio_spa_AAC.mkv`
 - Remove ara: `movie_removed_ara_DTS.mkv`
+
+The result is written next to the original. With `--replace` (or answering `y` to the prompt) it replaces the
+original file.
+
+---
+
+## Merge two MKV files
+
+`merge_mkv.py` concatenates two files (first `file1`, then `file2`) with FFmpeg, copying all streams without
+re-encoding. Both files should have the same codecs and track layout.
+
+```bash
+python merge_mkv.py "part1.mkv" "part2.mkv"                 # -> part1_merged.mkv
+python merge_mkv.py "part1.mkv" "part2.mkv" -o "full.mkv"
+```
+
+| Option | Description |
+|---|---|
+| `-o`, `--output` | Output file (default `<file1>_merged.mkv` next to `file1`; `.mkv` is added if missing) |
+
+---
+
+## Other BAT scripts
+
+| File | Use |
+|---|---|
+| `run_clean_mkv_audio.bat` | Runs `clean-mkv-audio.py` from the script folder; expects `conda` in the PATH |
+| `CleanMkvAudio.example.bat` | Template with absolute paths to copy to `Z:\bin`: replace `{AnacondaPath}`, `{anaconda3}` and `{mkv-cleaner-path}` |
+| `batch.bat` | Example batch run: removes track 0 from a range of episodes (`M:\S01E11 NANA.mkv` … `S01E47`) and replaces the originals. Edit the path and range before using it |
+
+---
+
+## Files
+
+| File | Contents |
+|---|---|
+| `clean-mkv-audio.py` | Entry point: options, mode menu |
+| `select_audio.py` | `select` mode: keep one audio track |
+| `remove_audio.py` | `remove` mode: remove one audio track |
+| `mkv_utils.py` | Reads tracks with `mkvmerge -J` and lists the audio tracks |
+| `merge_mkv.py` | Concatenates two MKV files with FFmpeg |

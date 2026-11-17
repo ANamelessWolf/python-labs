@@ -64,7 +64,10 @@ La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. 
 El archivo nunca se borra: los magnets nuevos se anexan al final, y cada elección se guarda en cuanto la haces
 (si cancelas con `Ctrl+C` no se pierde lo ya elegido). Para empezar de cero, borra el `.txt`.
 
-## Estructura
+## Código
+
+`PBAY.bat` llama a `pbay.py`, que solo arranca `pbay_app.cli.main` (la misma estructura que `tmdb-updates` y
+`nyaa-scrapper`).
 
 | Archivo | Qué tiene |
 |---|---|
@@ -109,5 +112,34 @@ Cada entrada de `items`:
 | `error` | Mensaje si falló la petición; si no, `null` |
 | `result` | El torrent guardado (`COPIED`) o el que ya estaba en el archivo (`SAVED`); si no, `null` |
 
-`result` trae `title`, `magnet`, `size` (`"1.4 GiB"`, tal cual el sitio), `sizeBytes` (número o `null`),
+`result` trae `title`, `magnet`, `size` (el texto del sitio, `"1.4 GiB"`), `sizeBytes` (número o `null`),
 `seeders`, `leechers` (números o `null`) y `url` (página del torrent).
+
+Ejemplo (`PBAY -q "Helluva Boss S03E01" --json`):
+
+```json
+{
+  "command": "query",
+  "site": "https://thepiratebay.bond",
+  "serie": null,
+  "query": "Helluva Boss S03E01",
+  "auto": true,
+  "file": "Z:\\dev\\py\\python-labs\\pbay-scrapper\\output\\general.txt",
+  "total": 1,
+  "stats": {"COPIED": 1, "SAVED": 0, "SKIPPED": 0, "NOT_FOUND": 0, "ERROR": 0},
+  "items": [
+    {
+      "season": null, "episode": null, "code": null,
+      "query": "Helluva Boss S03E01",
+      "state": "COPIED", "resultCount": 4, "error": null,
+      "result": {
+        "title": "Helluva Boss S03E01 1080p WEB h264",
+        "magnet": "magnet:?xt=urn:btih:...",
+        "size": "1.4 GiB", "sizeBytes": 1503238554,
+        "seeders": 1234, "leechers": 56,
+        "url": "https://thepiratebay.bond/torrent/123456/..."
+      }
+    }
+  ]
+}
+```

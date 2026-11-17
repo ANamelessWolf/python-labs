@@ -77,7 +77,9 @@ El archivo nunca se borra: si vuelves a correr con la misma `SERIE` (por ejemplo
 nuevos se anexan al final, y cada elección se guarda en cuanto la haces (si cancelas con `Ctrl+C` no se pierde lo
 ya elegido). Para empezar de cero, borra el `.txt`.
 
-## Estructura
+## Código
+
+`NYAA.bat` llama a `nyaa.py`, que solo arranca `nyaa_app.cli.main` (la misma estructura que `tmdb-updates`).
 
 | Archivo | Qué tiene |
 |---|---|
@@ -123,5 +125,40 @@ Cada entrada de `items`:
 | `error` | Mensaje si falló la petición; si no, `null` |
 | `result` | El torrent guardado (`COPIED`) o el que ya estaba en el archivo (`SAVED`); si no, `null` |
 
-`result` trae `title`, `magnet`, `size` (`"1.4 GiB"`, tal cual el sitio), `sizeBytes` (número o `null`),
+`result` trae `title`, `magnet`, `size` (el texto del sitio, `"1.4 GiB"`), `sizeBytes` (número o `null`),
 `seeders`, `leechers` (números o `null`) y `url` (página del torrent).
+
+Ejemplo (`NYAA -c config\otra.json --json`, recortado):
+
+```json
+{
+  "command": "series",
+  "site": "https://nyaa.si",
+  "serie": "Thousand-Year Blood War",
+  "query": "[ToonsHub] Thousand-Year Blood War SXXEXX",
+  "languages": [],
+  "auto": true,
+  "file": "Z:\\dev\\py\\python-labs\\nyaa-scrapper\\output\\thousand-YearBloodWar.txt",
+  "total": 2,
+  "stats": {"COPIED": 1, "SAVED": 0, "SKIPPED": 0, "NOT_FOUND": 1, "ERROR": 0},
+  "items": [
+    {
+      "season": 1, "episode": 1, "code": "S01E01",
+      "query": "[ToonsHub] Thousand-Year Blood War S01E01",
+      "state": "COPIED", "resultCount": 2, "error": null,
+      "result": {
+        "title": "[ToonsHub] BLEACH Thousand-Year Blood War S01E01 1080p ...",
+        "magnet": "magnet:?xt=urn:btih:...",
+        "size": "1.4 GiB", "sizeBytes": 1503238554,
+        "seeders": 20, "leechers": 1,
+        "url": "https://nyaa.si/view/123456"
+      }
+    },
+    {
+      "season": 1, "episode": 2, "code": "S01E02",
+      "query": "[ToonsHub] Thousand-Year Blood War S01E02",
+      "state": "NOT_FOUND", "resultCount": 0, "error": null, "result": null
+    }
+  ]
+}
+```
