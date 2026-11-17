@@ -43,6 +43,21 @@ copy config\settings.example.json config\settings.json
 | `NYAA -q "[ToonsHub] Thousand-Year Blood War S01E01"` | Una sola búsqueda; el magnet elegido se agrega a `output\general.txt`. Acepta `-a` |
 | `NYAA -h` | Ayuda con todos los modos, opciones y ejemplos |
 | `NYAA --delay 2` | Espera 2 s entre búsquedas (default 1) |
+| `NYAA -q "Hunter x Hunter" -ln es` | Filtra por idioma: abre la página de detalle de cada resultado y deja solo los que mencionan el idioma en la descripción (`Audio: Spanish`, `Sub Tracks: Español`, ...) o en el título. Funciona con cualquier modo |
+
+### Filtro de idioma (`-ln` / `--lang`)
+
+| Código | Palabras que busca (sin distinguir mayúsculas, palabra completa) |
+|---|---|
+| `es` | spanish, español, espanol, castellano, latino, latin american, spa, esp |
+| `en` | english, inglés, ingles, eng |
+| `ja` | japanese, japonés, japones, 日本語, jpn |
+| `pt` | portuguese, português, portugues |
+| `fr` | french, français, francais, fre, fra |
+
+Varios códigos separados por coma aceptan cualquiera (`-ln es,en`). Un valor que no está en la tabla se busca
+tal cual (`-ln german`). Como abre una página por resultado (4 en paralelo), la búsqueda tarda más; solo revisa la
+primera página de resultados (75).
 
 La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. Al elegir: escribe el número de la fila,
 `Enter` toma la 1 y `0` omite el episodio.

@@ -7,6 +7,7 @@ REM   NYAA -w  (o --wizard)       -> configura settings.json paso a paso y busca
 REM   NYAA -q "texto"             -> una sola busqueda, se agrega a output\general.txt
 REM   NYAA -h                     -> ayuda con todos los comandos
 REM   NYAA --delay 2              -> segundos entre busquedas (default 1)
+REM   NYAA -q "texto" -ln es      -> solo resultados cuya descripcion mencione el idioma (es, en, ja, pt, fr)
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\nyaa-scrapper"

@@ -8,15 +8,17 @@ Uso:
     python nyaa.py -q "texto"               una sola busqueda; se agrega a output/general.txt
     python nyaa.py -h                       ayuda con todos los comandos
     python nyaa.py --delay 2                segundos de espera entre busquedas (default 1)
+    python nyaa.py -q "texto" -ln es        solo resultados cuya pagina mencione el idioma (audio/subs)
 """
 import argparse
 import json
 import re
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urljoin
 
 import requests
 from bs4 import BeautifulSoup
@@ -37,6 +39,15 @@ CMD = "NYAA"
 DESCRIPTION = "Busca episodios en nyaa.si y guarda sus magnet links."
 EXAMPLE_QUERY = "[ToonsHub] Thousand-Year Blood War S01E01"
 HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) nyaa-scrapper"}
+# Palabras que identifican cada idioma en la descripcion del torrent (Audio, Dub/Sub Tracks, MediaInfo...)
+LANGUAGES = {
+    "es": ["spanish", "español", "espanol", "castellano", "latino", "latin american", "spa", "esp"],
+    "en": ["english", "inglés", "ingles", "eng"],
+    "ja": ["japanese", "japonés", "japones", "日本語", "jpn"],
+    "pt": ["portuguese", "português", "portugues"],
+    "fr": ["french", "français", "francais", "fre", "fra"],
+}
+DETAIL_WORKERS = 4
 
 console = Console()
 
@@ -48,6 +59,7 @@ class Result:
     size: str
     seeders: str
     leechers: str
+    view: str = ""
 
 
 def load_config(path: Path) -> dict:
@@ -76,7 +88,7 @@ def build_url(site: str, query: str) -> str:
     return f"{site.rstrip('/')}/?{urlencode(params)}"
 
 
-def fetch_results(session: requests.Session, url: str, retries: int = 3) -> list[Result]:
+def get_page(session: requests.Session, url: str, retries: int = 3) -> str:
     for attempt in range(1, retries + 1):
         response = session.get(url, timeout=30)
         if response.status_code == 429 or response.status_code >= 500:
@@ -86,8 +98,11 @@ def fetch_results(session: requests.Session, url: str, retries: int = 3) -> list
         break
     else:
         response.raise_for_status()
+    return response.text
 
-    soup = BeautifulSoup(response.text, "html.parser")
+
+def fetch_results(session: requests.Session, url: str) -> list[Result]:
+    soup = BeautifulSoup(get_page(session, url), "html.parser")
     results = []
     for row in soup.select("table.torrent-list tbody tr"):
         magnet = row.select_one('a[href^="magnet:"]')
@@ -101,8 +116,35 @@ def fetch_results(session: requests.Session, url: str, retries: int = 3) -> list
             if len(cells) >= 7 else ("?", "?", "?")
         )
         title = title_link.get("title") or title_link.get_text(strip=True)
-        results.append(Result(title, magnet["href"], size, seeders, leechers))
+        results.append(Result(title, magnet["href"], size, seeders, leechers, urljoin(url, title_link["href"])))
     return results
+
+
+def language_pattern(codes: list[str]) -> re.Pattern:
+    """['es'] -> regex con 'spanish', 'español', ... como palabra completa. Un codigo desconocido se busca tal cual."""
+    words = [w for code in codes for w in LANGUAGES.get(code.lower(), [code])]
+    return re.compile(r"(?<!\w)(" + "|".join(re.escape(w) for w in words) + r")(?!\w)", re.IGNORECASE)
+
+
+def fetch_description(session: requests.Session, url: str) -> str:
+    soup = BeautifulSoup(get_page(session, url), "html.parser")
+    node = soup.select_one("#torrent-description")
+    return node.get_text("\n", strip=True) if node else ""
+
+
+def filter_by_language(session: requests.Session, results: list[Result], pattern: re.Pattern) -> list[Result]:
+    """Abre la pagina de detalle de cada resultado y deja solo los que mencionan el idioma (titulo o descripcion)."""
+    def matches(result: Result) -> bool:
+        if pattern.search(result.title):
+            return True
+        try:
+            return bool(pattern.search(fetch_description(session, result.view)))
+        except requests.RequestException:
+            return False
+
+    with ThreadPoolExecutor(max_workers=DETAIL_WORKERS) as pool:
+        keep = list(pool.map(matches, results))
+    return [r for r, ok in zip(results, keep) if ok]
 
 
 def ask_choice(results: list[Result], episode_code: str) -> Result | None:
@@ -134,8 +176,9 @@ def episode_line(prefix: str, label: str, status: str, style: str, seeders: str 
 class Output:
     """Archivo de salida en modo anexar; recuerda los magnets ya guardados para no repetirlos."""
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, language: re.Pattern | None = None):
         self.path = path
+        self.language = language
         path.parent.mkdir(parents=True, exist_ok=True)
         self.saved: set[str] = set()
         if path.exists():
@@ -154,6 +197,9 @@ class Output:
         try:
             with console.status(f"[dim]Buscando {query}...[/dim]", spinner="dots"):
                 results = fetch_results(session, build_url(site, query))
+            if self.language and results:
+                with console.status(f"[dim]Revisando idioma en {len(results)} resultado(s)...[/dim]", spinner="dots"):
+                    results = filter_by_language(session, results, self.language)
         except requests.RequestException as exc:
             console.print(episode_line(prefix, f"{query} ({exc.__class__.__name__})", "Error", "red"))
             self.stats["Error"] += 1
@@ -199,14 +245,14 @@ def new_session() -> requests.Session:
     return session
 
 
-def run(config: dict, delay: float, auto: bool) -> int:
+def run(config: dict, delay: float, auto: bool, language: re.Pattern | None = None) -> int:
     serie = config["SERIE"]
     console.print(Panel(Text(serie, style="bold magenta", justify="center"),
                         subtitle=f"[dim]{config['SITE']}[/dim]", border_style="magenta"))
 
     session = new_session()
     # Si el archivo ya existe (mismo SERIE, otro QUERY) se anexan solo los magnets nuevos
-    with Output(OUTPUT_DIR / camel_case_filename(serie)) as output:
+    with Output(OUTPUT_DIR / camel_case_filename(serie), language) as output:
         for season in config["SEASON"]:
             index, start, end = int(season["INDEX"]), int(season["START"]), int(season["END"])
             console.print(Rule(f"[bold yellow]Season {index}[/bold yellow]  [dim]E{start:02d}-E{end:02d}[/dim]",
@@ -219,10 +265,10 @@ def run(config: dict, delay: float, auto: bool) -> int:
     return output.summary()
 
 
-def run_query(site: str, query: str, auto: bool) -> int:
+def run_query(site: str, query: str, auto: bool, language: re.Pattern | None = None) -> int:
     console.print(Panel(Text(query, style="bold magenta", justify="center"),
                         subtitle=f"[dim]{site}[/dim]", border_style="magenta"))
-    with Output(GENERAL_FILE) as output:
+    with Output(GENERAL_FILE, language) as output:
         output.handle(new_session(), site, query, "Query", query, auto)
     return output.summary()
 
@@ -301,12 +347,17 @@ opciones que se combinan con cualquier modo:
   -a, --auto                 no preguntar: tomar siempre el primer resultado
   -c, --config ARCHIVO       usar otro settings.json (también lo que guarda el wizard)
   --delay N                  segundos entre búsquedas (default 1)
+  -ln, --lang IDIOMAS        solo resultados cuya descripción (o título) mencione el idioma,
+                             p. ej. "Audio: Spanish" o "Sub Tracks: Español".
+                             Códigos: es, en, ja, pt, fr, o una palabra libre.
+                             Varios separados por coma = cualquiera de ellos (es,en)
 
 ejemplos:
   {CMD} -a
   {CMD} -w --auto
   {CMD} -q "{EXAMPLE_QUERY}" -a
   {CMD} -c config\\otra.json
+  {CMD} -q "Hunter x Hunter" -ln es
 
 al elegir: número de la fila, Enter = 1, 0 = omitir.
 """
@@ -321,7 +372,11 @@ def main() -> int:
     parser.add_argument("-a", "--auto", action="store_true", help="no preguntar: tomar siempre el primer resultado")
     parser.add_argument("-c", "--config", type=Path, default=DEFAULT_CONFIG, help="archivo JSON de configuración")
     parser.add_argument("--delay", type=float, default=1.0, help="segundos entre búsquedas (default 1)")
+    parser.add_argument("-ln", "--lang", metavar="IDIOMAS",
+                        help="filtrar por idioma en la descripción del torrent: es, en, ja, pt, fr (o es,en)")
     args = parser.parse_args()
+    codes = [c.strip() for c in (args.lang or "").split(",") if c.strip()]
+    language = language_pattern(codes) if codes else None
 
     interactive = sys.stdin.isatty()
     if args.wizard and not interactive:
@@ -337,7 +392,7 @@ def main() -> int:
                 site = load_config(args.config)["SITE"]
             except (OSError, ValueError):
                 site = DEFAULT_SITE
-            return run_query(site, args.query, auto)
+            return run_query(site, args.query, auto, language)
 
         if args.wizard:
             config = wizard(args.config)
@@ -351,7 +406,7 @@ def main() -> int:
                 console.print(f"[bold red]Error de configuración:[/bold red] {exc}")
                 console.print(f"[dim]Tip: {CMD} -w para crearla paso a paso.[/dim]")
                 return 1
-        return run(config, args.delay, auto)
+        return run(config, args.delay, auto, language)
     except KeyboardInterrupt:
         console.print("\n[yellow]Cancelado. Lo elegido hasta ahora ya está guardado.[/yellow]")
         return 130
