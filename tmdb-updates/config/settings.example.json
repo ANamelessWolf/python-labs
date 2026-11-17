@@ -1,0 +1,11 @@
+{
+  "MEDIA": {
+    "TV_PATHS": ["C:\\TV"],
+    "MOVIE_PATHS": ["C:\\Movies"]
+  },
+  "TMDB": {
+    "API_KEY": "",
+    "TMDB_BASE_URL": "https://api.themoviedb.org/3",
+    "LANGUAGE": "en-US"
+  }
+}

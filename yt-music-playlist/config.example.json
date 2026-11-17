@@ -1,0 +1,14 @@
+{
+  "auth": {
+    "method": "browser",
+    "browser_file": "browser.json",
+    "oauth_file": "oauth.json",
+    "client_id": "",
+    "client_secret": ""
+  },
+  "inputs_dir": "Inputs",
+  "default_privacy": "PRIVATE",
+  "replace_mode": "clear",
+  "min_title_similarity": 0.6,
+  "use_search_cache": true
+}

@@ -1,0 +1,8 @@
+name: ytMusic
+channels:
+  - defaults
+dependencies:
+  - python=3.12
+  - pip
+  - pip:
+      - ytmusicapi==1.12.3

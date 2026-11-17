@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "yt-music-playlist",
+  "description": "Formato de playlist local que se sincroniza con YouTube Music.",
+  "type": "object",
+  "required": ["name", "songs"],
+  "properties": {
+    "name": {
+      "type": "string",
+      "description": "Nombre de la playlist remota. Se usa para buscarla en tu biblioteca."
+    },
+    "description": {
+      "type": "string",
+      "description": "Descripcion de la playlist (opcional)."
+    },
+    "privacy": {
+      "type": "string",
+      "enum": ["PRIVATE", "UNLISTED", "PUBLIC"],
+      "description": "Privacidad al crearla. Si se omite se usa default_privacy de config.json."
+    },
+    "songs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["title", "artist"],
+        "properties": {
+          "title": { "type": "string", "description": "Nombre de la cancion (obligatorio)." },
+          "artist": { "type": "string", "description": "Artista (obligatorio)." },
+          "album": { "type": "string", "description": "Album (opcional: unreleased, en vivo, covers...)." },
+          "videoId": { "type": "string", "description": "Opcional: fuerza un video especifico y se omite la busqueda." }
+        }
+      }
+    }
+  }
+}
