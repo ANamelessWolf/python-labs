@@ -4,8 +4,8 @@ Scripts sueltos para ordenar archivos de series y películas. No tienen dependen
 Python 3.10+).
 
 Excepto `FixNaming.py`, se configuran **editando las constantes al inicio del archivo** (`DIRECTORIO`, `DRY_RUN`…).
-Ojo: varios traen `DRY_RUN = False`, así que renombran o mueven en cuanto los ejecutas. Ponlo en `True` para ver
-primero los cambios.
+Todos traen `DRY_RUN = True`: solo muestran qué harían. Revisa la salida y cambia a `False` para renombrar o mover
+de verdad (en `FixNaming.py`, con `--apply`).
 
 | Script | Qué hace | Configuración |
 |---|---|---|

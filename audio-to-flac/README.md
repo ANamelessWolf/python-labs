@@ -42,11 +42,10 @@ python convertToFlac.py input output
 `Z:\dev\py\python-labs\audio-to-flac` and runs:
 
 ```bat
-python convertToFlac.py audios flac
+python convertToFlac.py input output
 ```
 
-> The `.bat` uses the `audios` and `flac` folders, while the repository includes `input/` and `output/`
-> (both git-ignored). Create those folders, or change the arguments in the `.bat` to `input output`.
+Put the audio files in `input/` and the FLAC files are written to `output/` (both git-ignored).
 
 ---
 
