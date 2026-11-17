@@ -43,6 +43,29 @@ Llena `config/settings.json`:
 
 `-sn` acepta coincidencias parciales y no distingue mayúsculas; si varias series coinciden, te pregunta cuál.
 
+## Salida en JSON
+
+Todos los subcomandos aceptan `--json` (después del subcomando): `TMDB status --json`, `TMDB updates --json`,
+`TMDB scan -sn "Rivals" --json`… En vez de las tablas, imprime en stdout un JSON con los mismos datos; el progreso,
+los avisos y los errores van a stderr, y si algo falla termina con código 1. Lo usan los nodos TMDB de Node Board.
+
+Todos traen `command`, `lastScan` (ISO) y `totalSeries`. Además:
+
+| Comando | Campos |
+|---|---|
+| `status` | `tags` (conteo por tag) y `libraries`: `[{name, path, series: [serie]}]` |
+| `status -sn` | `series`: la serie con sus temporadas y episodios |
+| `updates` | `today`, `from`, `to`, `missing`, `upcoming` e `items`: `[{date, daysFromToday, series, library, code, title, state}]` (`state`: `MISSING` o `AVAILABLE`) |
+| `missing` | `totalEpisodes`, `seriesWithMissing`, `wholeSeasons` y `series`: cada una con las temporadas que faltan (`wholeSeason`, `missingCount`, `missingEpisodes`) |
+| `list` | `series`: `[{name, library, libraryPath, status, tag, tmdbId, tmdbName, nameDiffers}]` |
+| `scan` | `scanned`, `skipped`, `tags`, `removed`, `unavailable`, `problems` y, con `-sn`, `series` |
+| `fix` / `unfollow` | `message` y `series` (cómo quedó) |
+
+Una *serie* tiene `name`, `path`, `library`, `libraryPath`, `status` (de TMDB), `tag`, `finished`, `tmdbId`, `tmdbName`,
+`firstAirDate`, `maxSeason`, `lastScan`, `error`, `sizeBytes`, `size` (`"4.7 GB"`), `looseFiles` y `seasons`
+(`number`, `folder`, `tag`, `localEpisodes`, `tmdbEpisodes`, `airDate`, `sizeBytes`, `size`, `namingErrors` y, en el
+detalle, `episodes`: `[{code, number, name, airDate, daysFromToday, state}]`).
+
 ## Estructura esperada
 
 ```
