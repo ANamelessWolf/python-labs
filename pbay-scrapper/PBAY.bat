@@ -7,6 +7,7 @@ REM   PBAY -w  (o --wizard)       -> configura settings.json paso a paso y busca
 REM   PBAY -q "texto"             -> una sola busqueda, se agrega a output\general.txt
 REM   PBAY -h                     -> ayuda con todos los comandos
 REM   PBAY --delay 2              -> segundos entre busquedas (default 1)
+REM   PBAY -q "texto" --json      -> imprime el resultado como JSON (mensajes a stderr; implica -a)
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\pbay-scrapper"
@@ -14,7 +15,7 @@ SET "APP_DIR=Z:\dev\py\python-labs\pbay-scrapper"
 CALL "C:\Users\migue\anaconda3\Scripts\activate.bat" "C:\Users\migue\anaconda3"
 CALL conda activate WebScrapper
 IF ERRORLEVEL 1 (
-    echo Error: no se pudo activar el entorno conda "WebScrapper"
+    echo Error: no se pudo activar el entorno conda "WebScrapper" 1>&2
     exit /b 1
 )
 

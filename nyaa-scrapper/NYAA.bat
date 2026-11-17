@@ -8,6 +8,7 @@ REM   NYAA -q "texto"             -> una sola busqueda, se agrega a output\gener
 REM   NYAA -h                     -> ayuda con todos los comandos
 REM   NYAA --delay 2              -> segundos entre busquedas (default 1)
 REM   NYAA -q "texto" -ln es      -> solo resultados cuya descripcion mencione el idioma (es, en, ja, pt, fr)
+REM   NYAA -q "texto" --json      -> imprime el resultado como JSON (mensajes a stderr; implica -a)
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\nyaa-scrapper"
@@ -15,7 +16,7 @@ SET "APP_DIR=Z:\dev\py\python-labs\nyaa-scrapper"
 CALL "C:\Users\migue\anaconda3\Scripts\activate.bat" "C:\Users\migue\anaconda3"
 CALL conda activate WebScrapper
 IF ERRORLEVEL 1 (
-    echo Error: no se pudo activar el entorno conda "WebScrapper"
+    echo Error: no se pudo activar el entorno conda "WebScrapper" 1>&2
     exit /b 1
 )
 

@@ -47,6 +47,7 @@ La búsqueda queda como `https://thepiratebay.bond/search/Helluva%20Boss%20S03E0
 | `PBAY -q "Helluva Boss S03E01"` | Una sola búsqueda; el magnet elegido se agrega a `output\general.txt`. Acepta `-a` |
 | `PBAY -h` | Ayuda con todos los modos, opciones y ejemplos |
 | `PBAY --delay 2` | Espera 2 s entre búsquedas (default 1) |
+| `PBAY -q "Helluva Boss S03E01" --json` | Imprime el resultado como JSON en vez del reporte (ver [Salida en JSON](#salida-en-json)). Funciona con cualquier modo menos `-w` |
 
 La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. Al elegir: escribe el número de la fila, `Enter` toma la 1 y `0` omite el episodio.
 
@@ -62,3 +63,51 @@ La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. 
 
 El archivo nunca se borra: los magnets nuevos se anexan al final, y cada elección se guarda en cuanto la haces
 (si cancelas con `Ctrl+C` no se pierde lo ya elegido). Para empezar de cero, borra el `.txt`.
+
+## Estructura
+
+| Archivo | Qué tiene |
+|---|---|
+| `pbay.py` | Punto de entrada (lo llama `PBAY.bat`) |
+| `pbay_app/cli.py` | Opciones, comandos (`cmd_series`, `cmd_query`), wizard y `main` |
+| `pbay_app/config.py` | Rutas, constantes y lectura de `settings.json` |
+| `pbay_app/scraper.py` | Peticiones al sitio y lectura de resultados |
+| `pbay_app/search.py` | Archivo de salida: elige, guarda el magnet y registra cada búsqueda |
+| `pbay_app/report.py` | Reporte de consola (tabla para elegir, líneas y resumen) |
+| `pbay_app/export.py` | Salida en JSON (`--json`): los mismos datos que el reporte |
+
+## Salida en JSON
+
+Con `--json`, en vez del reporte imprime en stdout un único objeto JSON; el panel, el progreso y los avisos van a
+stderr. Funciona con el modo de `settings.json` (`PBAY --json`, `PBAY -c otra.json --json`) y con
+`PBAY -q "texto" --json`.
+
+- **Implica `--auto`**: nadie puede elegir, así que toma el primer resultado (y lo guarda en el `.txt` como siempre).
+- `-w --json` falla: el wizard es interactivo.
+- Un error de configuración termina con código 1, el mensaje va a stderr y no se imprime JSON.
+- Si falla la petición de algún episodio, el JSON se imprime igual (con código 0) y ese episodio queda con
+  `state: "ERROR"` y el mensaje en `error`. Así no se pierden los que sí se guardaron.
+
+| Campo | Descripción |
+|---|---|
+| `command` | `"series"` (búsqueda con `settings.json`) o `"query"` (`-q`) |
+| `site`, `serie`, `query` | Sitio, serie (`null` con `-q`) y query (con `SXXEXX` en modo serie) |
+| `auto` | Siempre `true` con `--json` |
+| `file` | Ruta del `.txt` donde se anexan los magnets |
+| `total` | Número de búsquedas |
+| `stats` | Conteo por estado: `{"COPIED": 3, "SAVED": 5, "SKIPPED": 0, "NOT_FOUND": 1, "ERROR": 0}` (siempre las 5 claves) |
+| `items` | Una entrada por búsqueda |
+
+Cada entrada de `items`:
+
+| Campo | Descripción |
+|---|---|
+| `season`, `episode`, `code` | Temporada, episodio y `"S01E05"`; `null` con `-q` |
+| `query` | Texto buscado |
+| `state` | `COPIED`, `SAVED`, `SKIPPED`, `NOT_FOUND` o `ERROR` (los [estados en consola](#estados-en-consola)) |
+| `resultCount` | Resultados encontrados |
+| `error` | Mensaje si falló la petición; si no, `null` |
+| `result` | El torrent guardado (`COPIED`) o el que ya estaba en el archivo (`SAVED`); si no, `null` |
+
+`result` trae `title`, `magnet`, `size` (`"1.4 GiB"`, tal cual el sitio), `sizeBytes` (número o `null`),
+`seeders`, `leechers` (números o `null`) y `url` (página del torrent).
