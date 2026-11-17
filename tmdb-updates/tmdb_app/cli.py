@@ -1,5 +1,6 @@
 import argparse
 import calendar
+import json
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date, timedelta
@@ -12,7 +13,7 @@ from rich.prompt import IntPrompt, Prompt
 from rich.table import Table
 from rich.text import Text
 
-from . import report
+from . import export, report
 from .config import LIBRARY_FILE, ConfigError, Settings, load_settings
 from .scanner import (
     ERROR, base_record, discover_series, evaluate, pick_match, scan_local_series, strip_year,
@@ -89,7 +90,7 @@ def process_series(client: TmdbClient, path: Path, library_root: Path, tmdb_id: 
 
 # ---------------------------------------------------------------- comandos
 
-def cmd_scan(settings: Settings, name: str | None = None, full: bool = False) -> None:
+def cmd_scan(settings: Settings, name: str | None = None, full: bool = False, as_json: bool = False) -> dict | None:
     library = Library()
     today = date.today()
     folders, unavailable = discover_series(settings.tv_paths)
@@ -137,6 +138,8 @@ def cmd_scan(settings: Settings, name: str | None = None, full: bool = False) ->
     finally:
         library.save()
 
+    if as_json:
+        return export.scan_result(library, scanned, skipped, removed, unavailable, today, detail=bool(name))
     report.render_scan_result(console, scanned, skipped, removed, unavailable)
     if name and scanned:
         console.print()
@@ -153,39 +156,57 @@ def find_series(library: Library, name: str) -> dict:
     return choose(library.find(name), lambda s: f"{s['folder']}  [grey50]({s['library']})", "series", name)
 
 
-def cmd_status(name: str | None = None) -> None:
+def cmd_status(name: str | None = None, as_json: bool = False) -> dict | None:
     library = Library()
+    today = date.today()
     if name:
-        report.render_series_detail(console, find_series(library, name), date.today())
+        series = find_series(library, name)
+        if as_json:
+            return export.status_series(library, series, today)
+        report.render_series_detail(console, series, today)
     else:
         require_data(library)
+        if as_json:
+            return export.status_tv(library, today)
         report.render_tv_status(console, library)
+    return None
 
 
-def cmd_updates() -> None:
+def cmd_updates(as_json: bool = False) -> dict | None:
     library = Library()
     require_data(library)
     today = date.today()
-    report.render_updates(console, library, today, months_ago(today, 2), today + timedelta(days=7))
+    start, end = months_ago(today, 2), today + timedelta(days=7)
+    if as_json:
+        return export.updates(library, today, start, end)
+    report.render_updates(console, library, today, start, end)
+    return None
 
 
-def cmd_missing(name: str | None = None) -> None:
+def cmd_missing(name: str | None = None, as_json: bool = False) -> dict | None:
     library = Library()
     if name:
         series_list = [find_series(library, name)]
     else:
         require_data(library)
         series_list = library.sorted_series()
+    if as_json:
+        return export.missing(library, series_list, date.today())
     report.render_missing(console, library, series_list, date.today())
+    return None
 
 
-def cmd_list() -> None:
+def cmd_list(as_json: bool = False) -> dict | None:
     library = Library()
     require_data(library)
+    if as_json:
+        return export.series_list(library)
     report.render_list(console, library)
+    return None
 
 
-def cmd_fix(settings: Settings, name: str, tmdb_id: int | None = None, search: bool = False) -> None:
+def cmd_fix(settings: Settings, name: str, tmdb_id: int | None = None, search: bool = False,
+            as_json: bool = False) -> dict | None:
     library = Library()
     series = find_series(library, name)
     client = make_client(settings)
@@ -203,11 +224,15 @@ def cmd_fix(settings: Settings, name: str, tmdb_id: int | None = None, search: b
         raise AppError(f"No se aplicó el fix, la serie queda como estaba: {record['error']}")
     library.series[record["path"]] = record
     library.save(touch_scan=False)
-    console.print(f"[green]✔ {series['folder']} actualizado con TMDB {tmdb_id}.\n")
+    message = f"{series['folder']} actualizado con TMDB {tmdb_id}."
+    if as_json:
+        return export.series_change("fix", library, record, message, date.today())
+    console.print(f"[green]✔ {message}\n")
     report.render_series_detail(console, record, date.today())
+    return None
 
 
-def cmd_unfollow(settings: Settings, name: str, max_season: int | None) -> None:
+def cmd_unfollow(settings: Settings, name: str, max_season: int | None, as_json: bool = False) -> dict | None:
     """Limita la serie hasta max_season (None = seguir todas otra vez) y la vuelve a escanear."""
     if max_season is not None and max_season < 1:
         raise AppError("La temporada debe ser 1 o mayor.")
@@ -224,11 +249,15 @@ def cmd_unfollow(settings: Settings, name: str, max_season: int | None) -> None:
     library.series[record["path"]] = record
     library.save(touch_scan=False)
     if max_season is None:
-        console.print(f"[green]✔ {series['folder']}: se vuelven a revisar todas las temporadas.\n")
+        message = f"{series['folder']}: se vuelven a revisar todas las temporadas."
     else:
-        console.print(f"[green]✔ {series['folder']}: solo se revisa hasta la temporada {max_season}; "
-                      f"las posteriores se ignoran.\n")
+        message = (f"{series['folder']}: solo se revisa hasta la temporada {max_season}; "
+                   f"las posteriores se ignoran.")
+    if as_json:
+        return export.series_change("unfollow", library, record, message, date.today())
+    console.print(f"[green]✔ {message}\n")
     report.render_series_detail(console, record, date.today())
+    return None
 
 
 def pick_from_search(client: TmdbClient, series: dict) -> int:
@@ -318,28 +347,32 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="TMDB", description="Revisa tu biblioteca de series contra TMDB. "
                                                               "Sin argumentos abre el menú interactivo.")
     sub = parser.add_subparsers(dest="command")
+    # --json va después del subcomando: TMDB status --json
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--json", action="store_true",
+                        help="Imprime el resultado como JSON (los mensajes y el progreso van a stderr)")
 
-    status = sub.add_parser("status", help="Estado de la biblioteca o de una serie")
+    status = sub.add_parser("status", parents=[common], help="Estado de la biblioteca o de una serie")
     group = status.add_mutually_exclusive_group()
     group.add_argument("-tv", action="store_true", help="Resumen de todas las series (default)")
     group.add_argument("-sn", metavar="NOMBRE", help="Detalle de una serie")
 
-    sub.add_parser("updates", help="Episodios faltantes o por salir (hoy -2 meses .. hoy +1 semana)")
-    missing = sub.add_parser("missing", help="Solo los episodios ya emitidos que te faltan, por serie")
+    sub.add_parser("updates", parents=[common], help="Episodios faltantes o por salir (hoy -2 meses .. hoy +1 semana)")
+    missing = sub.add_parser("missing", parents=[common], help="Solo los episodios ya emitidos que te faltan, por serie")
     missing.add_argument("-sn", metavar="NOMBRE", help="Solo esta serie")
-    sub.add_parser("list", help="Lista de series con su status de TMDB")
+    sub.add_parser("list", parents=[common], help="Lista de series con su status de TMDB")
 
-    scan = sub.add_parser("scan", help="Escanea la biblioteca y actualiza data/library.json")
+    scan = sub.add_parser("scan", parents=[common], help="Escanea la biblioteca y actualiza data/library.json")
     scan.add_argument("-sn", metavar="NOMBRE", help="Escanear solo esta serie")
     scan.add_argument("--full", action="store_true", help="Incluir series terminadas y completas")
 
-    fix = sub.add_parser("fix", help="Recarga una serie usando su tmdbId")
+    fix = sub.add_parser("fix", parents=[common], help="Recarga una serie usando su tmdbId")
     fix.add_argument("-sn", metavar="NOMBRE", required=True, help="Serie a corregir")
     fix_source = fix.add_mutually_exclusive_group()
     fix_source.add_argument("--id", type=int, help="Asignar este tmdbId")
     fix_source.add_argument("--search", action="store_true", help="Buscar en TMDB y elegir de una lista")
 
-    unfollow = sub.add_parser("unfollow", help="Revisa una serie solo hasta cierta temporada")
+    unfollow = sub.add_parser("unfollow", parents=[common], help="Revisa una serie solo hasta cierta temporada")
     unfollow.add_argument("-sn", metavar="NOMBRE", required=True, help="Serie a limitar")
     unfollow_target = unfollow.add_mutually_exclusive_group(required=True)
     unfollow_target.add_argument("-s", type=int, metavar="TEMPORADA", help="Última temporada a revisar")
@@ -349,23 +382,31 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    as_json = getattr(args, "json", False)
+    if as_json:
+        # stdout queda solo para el JSON; avisos, progreso y errores van a stderr.
+        console.file = sys.stderr
     try:
+        result = None
         if args.command is None:
             run_menu(load_settings)
         elif args.command == "status":
-            cmd_status(args.sn)
+            result = cmd_status(args.sn, as_json)
         elif args.command == "updates":
-            cmd_updates()
+            result = cmd_updates(as_json)
         elif args.command == "missing":
-            cmd_missing(args.sn)
+            result = cmd_missing(args.sn, as_json)
         elif args.command == "list":
-            cmd_list()
+            result = cmd_list(as_json)
         elif args.command == "scan":
-            cmd_scan(load_settings(), args.sn, args.full)
+            result = cmd_scan(load_settings(), args.sn, args.full, as_json)
         elif args.command == "fix":
-            cmd_fix(load_settings(), args.sn, args.id, args.search)
+            result = cmd_fix(load_settings(), args.sn, args.id, args.search, as_json)
         elif args.command == "unfollow":
-            cmd_unfollow(load_settings(), args.sn, None if args.all else args.s)
+            result = cmd_unfollow(load_settings(), args.sn, None if args.all else args.s, as_json)
+        if as_json:
+            sys.stdout.reconfigure(encoding="utf-8")
+            print(json.dumps(result, ensure_ascii=False, indent=2))
     except (AppError, ConfigError, TmdbError) as exc:
         console.print(f"[red]✘ {exc}")
         return 1
