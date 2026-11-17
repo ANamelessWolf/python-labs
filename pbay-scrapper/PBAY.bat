@@ -8,6 +8,8 @@ REM   PBAY -q "texto"             -> una sola busqueda, se agrega a output\gener
 REM   PBAY -h                     -> ayuda con todos los comandos
 REM   PBAY --delay 2              -> segundos entre busquedas (default 1)
 REM   PBAY -q "texto" --json      -> imprime el resultado como JSON (mensajes a stderr; implica -a)
+REM   PBAY -q "texto" -l           -> solo busca: lista todos los resultados sin guardar nada
+REM   PBAY -s "https://..."        -> usa otro sitio
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\pbay-scrapper"

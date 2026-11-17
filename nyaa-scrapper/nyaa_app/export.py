@@ -27,8 +27,9 @@ def state_key(state: str) -> str:
     return state.upper().replace(" ", "_")
 
 
-def result_json(result: Result) -> dict:
-    return {
+def result_json(result: Result, saved: set[str] | None = None) -> dict:
+    """Un torrent. Con saved (modo --list) agrega "saved": si el magnet ya esta en el archivo."""
+    data = {
         "title": result.title,
         "magnet": result.magnet,
         "size": result.size.replace("\xa0", " "),
@@ -37,9 +38,12 @@ def result_json(result: Result) -> dict:
         "leechers": parse_int(result.leechers),
         "url": result.view or None,
     }
+    if saved is not None:
+        data["saved"] = result.magnet in saved
+    return data
 
 
-def search_json(search: Search) -> dict:
+def search_json(search: Search, saved: set[str] | None = None) -> dict:
     return {
         "season": search.season,
         "episode": search.episode,
@@ -49,6 +53,8 @@ def search_json(search: Search) -> dict:
         "resultCount": search.result_count,
         "error": search.error,
         "result": result_json(search.result) if search.result else None,
+        # Con --list: todos los resultados en el orden del sitio; sin --list, null
+        "results": [result_json(r, saved) for r in search.results] if saved is not None else None,
     }
 
 
@@ -57,8 +63,9 @@ def search_result(command: str, output: Output, **context) -> dict:
     return {
         "command": command,
         **context,
+        "list": output.list_only,
         "file": str(output.path),
         "total": len(output.searches),
         "stats": {state_key(state): count for state, count in output.stats.items()},
-        "items": [search_json(s) for s in output.searches],
+        "items": [search_json(s, output.saved if output.list_only else None) for s in output.searches],
     }

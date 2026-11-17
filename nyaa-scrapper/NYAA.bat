@@ -9,6 +9,8 @@ REM   NYAA -h                     -> ayuda con todos los comandos
 REM   NYAA --delay 2              -> segundos entre busquedas (default 1)
 REM   NYAA -q "texto" -ln es      -> solo resultados cuya descripcion mencione el idioma (es, en, ja, pt, fr)
 REM   NYAA -q "texto" --json      -> imprime el resultado como JSON (mensajes a stderr; implica -a)
+REM   NYAA -q "texto" -l           -> solo busca: lista todos los resultados sin guardar nada
+REM   NYAA -s "https://..."        -> usa otro sitio
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\nyaa-scrapper"
