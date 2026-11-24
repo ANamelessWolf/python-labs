@@ -24,7 +24,8 @@ console = Console()
 
 # ---------------------------------------------------------------- comandos
 
-def cmd_series(config: dict, delay: float, auto: bool, codes: list[str], as_json: bool = False) -> dict | int:
+def cmd_series(config: dict, delay: float, auto: bool, codes: list[str], as_json: bool = False,
+               list_only: bool = False) -> dict | int:
     """Busca cada episodio de la config. En modo JSON devuelve el dict; si no, dibuja el resumen y regresa
     el codigo de salida."""
     serie = config["SERIE"]
@@ -34,7 +35,7 @@ def cmd_series(config: dict, delay: float, auto: bool, codes: list[str], as_json
 
     session = new_session()
     # Si el archivo ya existe (mismo SERIE, otro QUERY) se anexan solo los magnets nuevos
-    with Output(OUTPUT_DIR / camel_case_filename(serie), console, language) as output:
+    with Output(OUTPUT_DIR / camel_case_filename(serie), console, language, list_only) as output:
         for season in config["SEASON"]:
             index, start, end = int(season["INDEX"]), int(season["START"]), int(season["END"])
             console.print(Rule(f"[bold yellow]Season {index}[/bold yellow]  [dim]E{start:02d}-E{end:02d}[/dim]",
@@ -48,20 +49,21 @@ def cmd_series(config: dict, delay: float, auto: bool, codes: list[str], as_json
     if as_json:
         return export.search_result("series", output, site=config["SITE"], serie=serie, query=config["QUERY"],
                                     languages=codes, auto=auto)
-    return report.render_summary(console, output)
+    return (report.render_results if list_only else report.render_summary)(console, output)
 
 
-def cmd_query(site: str, query: str, auto: bool, codes: list[str], as_json: bool = False) -> dict | int:
-    """Una sola busqueda; el magnet va a output/general.txt."""
+def cmd_query(site: str, query: str, auto: bool, codes: list[str], as_json: bool = False,
+              list_only: bool = False) -> dict | int:
+    """Una sola busqueda; el magnet va a output/general.txt (con --list no se guarda nada)."""
     language = language_pattern(codes) if codes else None
     console.print(Panel(Text(query, style="bold magenta", justify="center"),
                         subtitle=f"[dim]{site}[/dim]", border_style="magenta"))
-    with Output(GENERAL_FILE, console, language) as output:
+    with Output(GENERAL_FILE, console, language, list_only) as output:
         output.handle(new_session(), site, query, "Query", query, auto)
 
     if as_json:
         return export.search_result("query", output, site=site, serie=None, query=query, languages=codes, auto=auto)
-    return report.render_summary(console, output)
+    return (report.render_results if list_only else report.render_summary)(console, output)
 
 
 # ---------------------------------------------------------------- wizard
@@ -138,6 +140,9 @@ opciones que se combinan con cualquier modo:
   -a, --auto                 no preguntar: tomar siempre el primer resultado
   -c, --config ARCHIVO       usar otro settings.json (también lo que guarda el wizard)
   --delay N                  segundos entre búsquedas (default 1)
+  -s, --site URL             usar otro sitio en lugar del SITE de la configuración
+  -l, --list                 solo buscar: muestra todos los resultados (✔ = ya guardado)
+                             y no pregunta ni escribe nada en el .txt
   -ln, --lang IDIOMAS        solo resultados cuya descripción (o título) mencione el idioma,
                              p. ej. "Audio: Spanish" o "Sub Tracks: Español".
                              Códigos: es, en, ja, pt, fr, o una palabra libre.
@@ -152,6 +157,7 @@ ejemplos:
   {CMD} -c config\\otra.json
   {CMD} -q "Hunter x Hunter" -ln es
   {CMD} -q "{EXAMPLE_QUERY}" --json
+  {CMD} -q "{EXAMPLE_QUERY}" --list --json
 
 al elegir: número de la fila, Enter = 1, 0 = omitir.
 """
@@ -166,6 +172,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("-a", "--auto", action="store_true", help="no preguntar: tomar siempre el primer resultado")
     parser.add_argument("-c", "--config", type=Path, default=DEFAULT_CONFIG, help="archivo JSON de configuración")
     parser.add_argument("--delay", type=float, default=1.0, help="segundos entre búsquedas (default 1)")
+    parser.add_argument("-s", "--site", metavar="URL", help="usar otro sitio en lugar del SITE de la configuración")
+    parser.add_argument("-l", "--list", action="store_true",
+                        help="solo buscar: muestra todos los resultados y no escribe nada en el .txt")
     parser.add_argument("-ln", "--lang", metavar="IDIOMAS",
                         help="filtrar por idioma en la descripción del torrent: es, en, ja, pt, fr (o es,en)")
     # Sin subcomandos: --json es una opción más (NYAA -q "texto" --json)
@@ -186,12 +195,15 @@ def main(argv: list[str] | None = None) -> int:
     codes = [c.strip() for c in (args.lang or "").split(",") if c.strip()]
 
     interactive = sys.stdin.isatty()
+    if args.wizard and args.list:
+        console.print("[bold red]El wizard no se combina con --list.[/bold red]")
+        return 1
     if args.wizard and not interactive:
         console.print("[bold red]El wizard necesita una consola interactiva.[/bold red]")
         return 1
     # Con --json nadie puede elegir: se toma el primer resultado, igual que sin consola interactiva.
     auto = args.auto or as_json or not interactive
-    if auto and not args.auto and not as_json:
+    if auto and not args.auto and not as_json and not args.list:
         console.print("[yellow]Sin consola interactiva: se toma el primer resultado de cada búsqueda.[/yellow]")
 
     try:
@@ -200,7 +212,7 @@ def main(argv: list[str] | None = None) -> int:
                 site = load_config(args.config)["SITE"]
             except (OSError, ValueError):
                 site = DEFAULT_SITE
-            result = cmd_query(site, args.query, auto, codes, as_json)
+            result = cmd_query(args.site or site, args.query, auto, codes, as_json, args.list)
         else:
             if args.wizard:
                 config = wizard(args.config)
@@ -214,7 +226,9 @@ def main(argv: list[str] | None = None) -> int:
                     console.print(f"[bold red]Error de configuración:[/bold red] {exc}")
                     console.print(f"[dim]Tip: {CMD} -w para crearla paso a paso.[/dim]")
                     return 1
-            result = cmd_series(config, args.delay, auto, codes, as_json)
+            if args.site:
+                config["SITE"] = args.site
+            result = cmd_series(config, args.delay, auto, codes, as_json, args.list)
 
         if as_json:
             # Los fallos de cada busqueda van en items (state ERROR); el JSON se imprime igual.

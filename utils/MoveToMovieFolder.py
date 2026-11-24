@@ -20,7 +20,7 @@ REGEX = r"^(?P<year>\d{4})\.(?P<title>.+?)(?=\.(?:\d{3,4}p|\d{3,4}x\d{3,4}|BDRip
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v"}
 
 # 🔥 Modo simulación
-DRY_RUN = False  # True = solo muestra cambios, False = mueve archivos
+DRY_RUN = True  # True = solo muestra cambios, False = mueve archivos
 
 
 # ==============================

@@ -8,7 +8,7 @@ DIRECTORIO = r"M:\\tmp\\How a Realist Hero Rebuilt the Kingdom"
 SERIE = "Made in Abyss"
 TEMPORADA = 1
 OFFSET_EPISODE = 13
-DRY_RUN = False  # True = solo muestra cambios, False = renombra
+DRY_RUN = True  # True = solo muestra cambios, False = renombra
 
 # Extensiones válidas de video
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".avi", ".mov", ".wmv", ".m4v"}

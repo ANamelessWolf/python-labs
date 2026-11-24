@@ -78,10 +78,10 @@ def rename_files(directory: Path, dry_run: bool = True) -> None:
 def main() -> None:
     if len(sys.argv) < 2:
         print("Uso:")
-        print("  python rename_versions.py <carpeta> [--apply]")
+        print("  python FixNaming.py <carpeta> [--apply]")
         print("")
         print("Ejemplo:")
-        print(r'  python rename_versions.py "D:\Anime\Season 01" --apply')
+        print(r'  python FixNaming.py "D:\Anime\Season 01" --apply')
         sys.exit(1)
 
     directory = Path(sys.argv[1])

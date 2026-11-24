@@ -47,6 +47,8 @@ La búsqueda queda como `https://thepiratebay.bond/search/Helluva%20Boss%20S03E0
 | `PBAY -q "Helluva Boss S03E01"` | Una sola búsqueda; el magnet elegido se agrega a `output\general.txt`. Acepta `-a` |
 | `PBAY -h` | Ayuda con todos los modos, opciones y ejemplos |
 | `PBAY --delay 2` | Espera 2 s entre búsquedas (default 1) |
+| `PBAY -q "Helluva Boss S03E01" -l` (o `--list`) | Solo busca: muestra la tabla con **todos** los resultados (✔ = ya está en el `.txt`) sin preguntar ni escribir nada. Funciona con cualquier modo menos `-w` |
+| `PBAY -s https://otro.sitio` (o `--site`) | Usa otro sitio en lugar del `SITE` de la configuración |
 | `PBAY -q "Helluva Boss S03E01" --json` | Imprime el resultado como JSON en vez del reporte (ver [Salida en JSON](#salida-en-json)). Funciona con cualquier modo menos `-w` |
 
 La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. Al elegir: escribe el número de la fila, `Enter` toma la 1 y `0` omite el episodio.
@@ -60,6 +62,7 @@ La tabla muestra nombre, tamaño, seeds (▲) y leechers (▼) de cada torrent. 
 | `[Skipped]` | Elegiste `0` |
 | `[Not Found]` | La búsqueda no tuvo resultados |
 | `[Error]` | Falló la petición HTTP |
+| `[Found]` | Solo con `--list`: hubo resultados y no se guardó ninguno |
 
 El archivo nunca se borra: los magnets nuevos se anexan al final, y cada elección se guarda en cuanto la haces
 (si cancelas con `Ctrl+C` no se pierde lo ya elegido). Para empezar de cero, borra el `.txt`.
@@ -86,6 +89,8 @@ stderr. Funciona con el modo de `settings.json` (`PBAY --json`, `PBAY -c otra.js
 `PBAY -q "texto" --json`.
 
 - **Implica `--auto`**: nadie puede elegir, así que toma el primer resultado (y lo guarda en el `.txt` como siempre).
+- **Con `--list`** (`PBAY -q "texto" --list --json`) no elige ni guarda nada: cada item trae `results` con todos los
+  resultados y su `state` es `FOUND` (o `NOT_FOUND` / `ERROR`). Lo usan los nodos Torrents de Node Board.
 - `-w --json` falla: el wizard es interactivo.
 - Un error de configuración termina con código 1, el mensaje va a stderr y no se imprime JSON.
 - Si falla la petición de algún episodio, el JSON se imprime igual (con código 0) y ese episodio queda con
@@ -96,9 +101,10 @@ stderr. Funciona con el modo de `settings.json` (`PBAY --json`, `PBAY -c otra.js
 | `command` | `"series"` (búsqueda con `settings.json`) o `"query"` (`-q`) |
 | `site`, `serie`, `query` | Sitio, serie (`null` con `-q`) y query (con `SXXEXX` en modo serie) |
 | `auto` | Siempre `true` con `--json` |
-| `file` | Ruta del `.txt` donde se anexan los magnets |
+| `list` | `true` con `--list` |
+| `file` | Ruta del `.txt` donde se anexan los magnets (con `--list` solo se lee) |
 | `total` | Número de búsquedas |
-| `stats` | Conteo por estado: `{"COPIED": 3, "SAVED": 5, "SKIPPED": 0, "NOT_FOUND": 1, "ERROR": 0}` (siempre las 5 claves) |
+| `stats` | Conteo por estado: `{"COPIED": 3, "SAVED": 5, "SKIPPED": 0, "NOT_FOUND": 1, "ERROR": 0, "FOUND": 0}` (siempre las 6 claves) |
 | `items` | Una entrada por búsqueda |
 
 Cada entrada de `items`:
@@ -107,10 +113,11 @@ Cada entrada de `items`:
 |---|---|
 | `season`, `episode`, `code` | Temporada, episodio y `"S01E05"`; `null` con `-q` |
 | `query` | Texto buscado |
-| `state` | `COPIED`, `SAVED`, `SKIPPED`, `NOT_FOUND` o `ERROR` (los [estados en consola](#estados-en-consola)) |
+| `state` | `COPIED`, `SAVED`, `SKIPPED`, `NOT_FOUND`, `ERROR` o `FOUND` (los [estados en consola](#estados-en-consola)) |
 | `resultCount` | Resultados encontrados |
 | `error` | Mensaje si falló la petición; si no, `null` |
 | `result` | El torrent guardado (`COPIED`) o el que ya estaba en el archivo (`SAVED`); si no, `null` |
+| `results` | Con `--list`: todos los resultados en el orden del sitio, cada uno con `saved` (si el magnet ya está en el `.txt`); sin `--list`, `null` |
 
 `result` trae `title`, `magnet`, `size` (el texto del sitio, `"1.4 GiB"`), `sizeBytes` (número o `null`),
 `seeders`, `leechers` (números o `null`) y `url` (página del torrent).

@@ -10,6 +10,6 @@ REM === Move to script directory ===
 cd /d Z:\dev\py\python-labs\audio-to-flac
 
 REM === Run script ===
-python convertToFlac.py audios flac
+python convertToFlac.py input output
 
 pause
