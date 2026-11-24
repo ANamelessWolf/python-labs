@@ -1,0 +1,8 @@
+{
+  "API_KEY": "TU_API_KEY",
+  "API_URL": "https://api.setlist.fm/rest/1.0",
+  "LANGUAGE": "en",
+  "PRIVACY": "PUBLIC",
+  "ITUNES_COUNTRY": "US",
+  "OUTPUT_DIR": "output"
+}

@@ -230,6 +230,7 @@ yt-music-playlist/config.json
 yt-music-playlist/browser.json
 yt-music-playlist/oauth.json
 yt-music-playlist/cache/*
+yt-music-playlist/Inputs/*
 
 # tmdb-updates
 tmdb-updates/config/settings.json
@@ -244,3 +245,10 @@ nyaa-scrapper/output/*
 pbay-scrapper/config/settings.json
 pbay-scrapper/output/*
 !pbay-scrapper/output/.gitkeep
+
+# setlist-fm-scrapper
+setlist-fm-scrapper/config/settings.json
+setlist-fm-scrapper/output/*
+!setlist-fm-scrapper/output/.gitkeep
+setlist-fm-scrapper/cache/*
+!setlist-fm-scrapper/cache/.gitkeep
