@@ -10,6 +10,9 @@ Uso:
     python tmdb.py list                lista de series
     python tmdb.py fix -sn "Serie"     recarga la serie con su tmdbId (--id N / --search)
     python tmdb.py unfollow -sn "Serie" -s 14   revisa solo hasta la temporada 14 (--all quita el limite)
+    python tmdb.py movie -d "Carpeta" -n "Pelicula" [-y 2012]   renombra a 'Pelicula (2012)' + folder.jpg
+    python tmdb.py movie -mv "Carpeta" [-g "Horror"]   mueve a MOVIE_PATHS/Horror (sin -g pregunta)
+    python tmdb.py movie -ls [-g "Horror"] [-o x.json]   lista por genero, valida con TMDB y baja posters
 """
 import sys
 

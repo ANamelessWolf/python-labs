@@ -1,20 +1,29 @@
 import argparse
 import calendar
 import json
+import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
+from rich.progress import (
+    BarColumn, DownloadColumn, MofNCompleteColumn, Progress, SpinnerColumn, TextColumn, TimeElapsedColumn,
+    TimeRemainingColumn, TransferSpeedColumn,
+)
 from rich.prompt import IntPrompt, Prompt
 from rich.table import Table
 from rich.text import Text
+from rich.tree import Tree
 
-from . import export, report
+from . import export, movielib, report
 from .config import LIBRARY_FILE, ConfigError, Settings, load_settings
+from .movie import (
+    Genre, MoveResult, MovieError, find_genre, format_movie, list_genres, move_folder, repair_windows_argv, resolve_folder,
+    safe_genre_name,
+)
 from .scanner import (
     ERROR, base_record, discover_series, evaluate, pick_match, scan_local_series, strip_year,
 )
@@ -260,6 +269,248 @@ def cmd_unfollow(settings: Settings, name: str, max_season: int | None, as_json:
     return None
 
 
+def cmd_movie(settings: Settings, directory: str, name: str, year: int | None,
+              as_json: bool = False) -> dict | None:
+    """Renombra la carpeta a 'Nombre (Año)' y guarda el poster de TMDB como folder.jpg/png."""
+    if year is not None and not 1870 <= year <= 2200:
+        raise AppError(f"Año inválido: {year}")
+    folder = resolve_folder(directory, settings.movie_paths)
+    with console.status("Buscando en TMDB…") as spinner:
+        result = format_movie(make_client(settings), folder, name.strip(), year, spinner.update)
+    for warning in result.warnings:
+        console.print(f"[yellow]⚠ {warning}")
+    if as_json:
+        return result.to_json()
+    console.print(f"[green]✔ TMDB {result.tmdb_id}: {result.title}" + (f" ({result.year})" if result.year else ""))
+    if result.renamed:
+        console.print(f"  [grey50]{result.previous_path.name}[/] → [bold]{result.path.name}")
+    else:
+        console.print(f"  [grey50]La carpeta ya se llamaba[/] [bold]{result.path.name}")
+    if result.poster:
+        console.print(f"  [grey50]Poster:[/] {result.poster.name}")
+    console.print(f"  {result.path}")
+    return None
+
+
+def ask_genre(genres: list[Genre], multiple_roots: bool) -> str:
+    """Muestra los géneros en columnas y regresa el nombre elegido (número o un nombre nuevo)."""
+    if not interactive():
+        raise AppError("Falta -g GENERO (no hay consola interactiva para elegirlo).")
+    labels = [f"[bold bright_blue]{i:>2}[/] {g.name}" + (f" [grey50]({g.path.parent})" if multiple_roots else "")
+              for i, g in enumerate(genres, start=1)]
+    columns = 3 if len(labels) > 12 else 1
+    rows = (len(labels) + columns - 1) // columns
+    grid = Table.grid(padding=(0, 3))
+    for row in range(rows):
+        grid.add_row(*[labels[row + col * rows] if row + col * rows < len(labels) else ""
+                       for col in range(columns)])
+    console.print(Panel(grid, title="[bold]Géneros", border_style="bright_blue", expand=False))
+    while True:
+        answer = Prompt.ask("Número de género, o escribe un nombre nuevo").strip()
+        if answer.isdigit() and 1 <= int(answer) <= len(genres):
+            return genres[int(answer) - 1].name
+        if answer and not answer.isdigit():
+            return answer
+        console.print("[red]Opción inválida.")
+
+
+def movie_roots(settings: Settings) -> list[Path]:
+    if not settings.movie_paths:
+        raise AppError("MEDIA.MOVIE_PATHS está vacío en config/settings.json.")
+    roots = [r for r in settings.movie_paths if r.is_dir()]
+    if not roots:
+        raise AppError("No está disponible ninguna carpeta de MOVIE_PATHS: "
+                       + ", ".join(str(r) for r in settings.movie_paths))
+    return roots
+
+
+def cmd_movie_list(settings: Settings, genre_name: str | None, as_json: bool = False, refresh: bool = False,
+                   posters: bool = True, out: str | None = None) -> dict | None:
+    """Lista películas y colecciones por género (recursivo), valida los nombres contra TMDB usando
+    data/movies.json como cache y baja el poster a las carpetas que no lo tienen."""
+    roots = movie_roots(settings)
+    genres = list_genres(roots)
+    if genre_name:
+        exact = find_genre(genres, genre_name)
+        wanted = genre_name.strip().lower()
+        genres = [exact] if exact else [g for g in genres if wanted in g.name.lower()]
+        if not genres:
+            raise AppError(f"No existe el género '{genre_name}'.")
+
+    with console.status("Leyendo carpetas…"):
+        listing = [(g, movielib.scan_genre(g)) for g in genres]
+    nodes = [n for _, items in listing for top in items for n in top.walk()]
+
+    cache = movielib.MovieCache()
+    client = make_client(settings)
+    pending = [n for n in nodes if not n.error and cache.needs_lookup(n, refresh)]
+    progress = Progress(SpinnerColumn(), TextColumn("[bold blue]{task.description}"), BarColumn(),
+                        MofNCompleteColumn(), TimeElapsedColumn(), console=console, transient=True)
+    try:
+        if pending:
+            # Primero las películas: las colecciones se validan con los tmdbId de las películas de adentro
+            movies_first = [n for n in pending if n.kind == movielib.MOVIE]
+            collections = [n for n in pending if n.kind == movielib.COLLECTION]
+            with progress, ThreadPoolExecutor(max_workers=SCAN_WORKERS) as pool:
+                task = progress.add_task("Validando con TMDB", total=len(pending))
+                for batch in (movies_first, collections):
+                    futures = {
+                        (pool.submit(movielib.lookup_movie, client, n, cache.get(n)) if n.kind == movielib.MOVIE
+                         else pool.submit(movielib.lookup_collection, client, n, cache.get(n),
+                                          movielib.child_movie_ids(n, cache))): n
+                        for n in batch
+                    }
+                    for future in as_completed(futures):
+                        node = futures[future]
+                        try:
+                            cache.put(node, future.result())
+                        except TmdbError as exc:
+                            node.error = str(exc)
+                        progress.update(task, advance=1, description=f"Validando · {node.name[:40]}")
+        # Con -g solo se limpia ese género; sin -g, todo lo que esté bajo MOVIE_PATHS disponibles
+        removed = cache.prune(nodes, [g.path for g in genres] if genre_name else roots, full=not genre_name)
+        for genre, items in listing:
+            cache.locate(genre, items)
+        for node in nodes:
+            movielib.apply_status(node, cache.get(node))
+    finally:
+        cache.save()
+
+    to_download = [n for n in nodes if posters and movielib.wants_poster(n)]
+    if to_download:
+        with progress, ThreadPoolExecutor(max_workers=SCAN_WORKERS) as pool:
+            task = progress.add_task("Bajando posters", total=len(to_download))
+            for future in as_completed([pool.submit(movielib.download_poster, client, n) for n in to_download]):
+                future.result()
+                progress.advance(task)
+
+    movies = [n for n in nodes if n.kind == movielib.MOVIE]
+    counts = {status: sum(1 for n in movies if n.status == status)
+              for status in (movielib.OK, movielib.RENAME, movielib.REVIEW, movielib.NOT_FOUND)}
+    payload = {
+        "command": "movie-list",
+        "generated": datetime.now().isoformat(timespec="seconds"),
+        "cache": str(cache.path),
+        "totalMovies": len(movies),
+        "totalCollections": sum(1 for n in nodes if n.kind == movielib.COLLECTION),
+        "totalGenres": len(listing),
+        "status": counts,
+        "removedFromCache": removed,
+        "withoutPoster": sum(1 for n in nodes if not n.poster),
+        "postersCreated": sum(1 for n in nodes if n.poster_created),
+        "genres": [{"name": g.name, "path": str(g.path), "count": sum(i.movie_count for i in items),
+                    "items": [i.to_json() for i in items]} for g, items in listing],
+    }
+    if out:
+        out_path = Path(out).expanduser().resolve()
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
+    if as_json:
+        return payload
+
+    multiple_roots = len(roots) > 1
+    for genre, items in listing:
+        title = f"[bold bright_blue]{genre.name}[/] [grey50]({sum(i.movie_count for i in items)})"
+        if multiple_roots:
+            title += f" [grey50]{genre.path.parent}"
+        tree = Tree(title, guide_style="grey50")
+        for item in items:
+            add_movie_node(tree, item)
+        console.print(tree)
+
+    summary = (f"[bold]{len(movies)}[/] películas · [bold]{payload['totalCollections']}[/] colecciones · "
+               f"[bold]{len(listing)}[/] géneros\n[green]{counts['OK']} OK[/]")
+    for status, style in ((movielib.RENAME, "yellow"), (movielib.REVIEW, "magenta"), (movielib.NOT_FOUND, "red")):
+        if counts[status]:
+            summary += f" · [{style}]{counts[status]} {STATUS_LABELS[status]}[/]"
+    if payload["postersCreated"]:
+        summary += f" · [green]{payload['postersCreated']} posters nuevos[/]"
+    if payload["withoutPoster"]:
+        summary += f" · [grey50]{payload['withoutPoster']} sin poster[/]"
+    console.print()
+    console.print(summary)
+    if removed:
+        console.print(f"[grey50]Quitadas del cache (ya no existen): {', '.join(removed)}")
+    if out:
+        console.print(f"[grey50]JSON exportado a[/] {Path(out).expanduser().resolve()}")
+    return None
+
+
+STATUS_LABELS = {"RENAME": "renombrar", "REVIEW": "revisar", "NOT_FOUND": "no están en TMDB"}
+
+
+def add_movie_node(parent: Tree, node) -> None:
+    e = node.entry or {}
+    label = Text()
+    if node.kind == movielib.COLLECTION:
+        label.append(f"{node.name}", style="bold")
+        label.append(f" ({node.movie_count})", style="grey50")
+        if node.status == movielib.NOT_FOUND:
+            label.append("  colección no encontrada", style="grey50")
+        elif node.status == movielib.REVIEW:
+            label.append(f"  ¿{e.get('title')}?", style="magenta")
+    else:
+        label.append(node.name)
+        if node.status == movielib.RENAME:
+            label.append(f"  → {node.suggested}", style="yellow")
+        elif node.status == movielib.REVIEW:
+            label.append(f"  ¿{node.suggested}?", style="magenta")
+        elif node.status == movielib.NOT_FOUND:
+            label.append("  no está en TMDB", style="red")
+    if node.poster_created:
+        label.append("  +poster", style="green")
+    elif not node.poster:
+        label.append("  sin poster", style="grey50")
+    if node.error:
+        label.append(f"  ✘ {node.error}", style="red")
+    branch = parent.add(label)
+    for child in node.children:
+        add_movie_node(branch, child)
+
+
+def cmd_movie_move(settings: Settings, directory: str, genre_name: str | None, as_json: bool = False) -> dict | None:
+    """Mueve la carpeta de la película a MOVIE_PATHS/<género>; crea el género si no existe."""
+    roots = movie_roots(settings)
+    folder = resolve_folder(directory, [])
+    genres = list_genres(roots)
+    if not genre_name:
+        genre_name = ask_genre(genres, len(roots) > 1)
+
+    genre = find_genre(genres, genre_name)
+    created = genre is None
+    if created:
+        name = safe_genre_name(genre_name)
+        genre = Genre(name, roots[0] / name)
+
+    target = genre.path / folder.name
+    moved = os.path.normcase(folder.parent) != os.path.normcase(genre.path.resolve())
+    if moved:
+        if target.exists():
+            raise AppError(f"Ya existe '{target}'.")
+        if os.path.normcase(genre.path.resolve()).startswith(os.path.normcase(folder) + os.sep):
+            raise AppError("No se puede mover una carpeta dentro de sí misma.")
+        if created:
+            genre.path.mkdir(parents=True, exist_ok=True)
+            console.print(f"[yellow]Género nuevo:[/] {genre.path}")
+        progress = Progress(TextColumn("[bold blue]Moviendo"), BarColumn(), DownloadColumn(),
+                            TransferSpeedColumn(), TimeRemainingColumn(), console=console, transient=True)
+        with progress:
+            task = progress.add_task("mover", total=None, visible=False)
+            move_folder(folder, target,
+                        start=lambda total: progress.update(task, total=total, visible=True),
+                        advance=lambda n: progress.advance(task, n))
+
+    result = MoveResult(folder, target if moved else folder, genre, created and moved, moved)
+    if as_json:
+        return result.to_json()
+    if moved:
+        console.print(f"[green]✔ {folder.name}[/] → [bold]{genre.name}")
+        console.print(f"  {result.path}")
+    else:
+        console.print(f"[yellow]'{folder.name}' ya está en {genre.name}.")
+    return None
+
+
 def pick_from_search(client: TmdbClient, series: dict) -> int:
     if not interactive():
         raise AppError("--search necesita una consola interactiva.")
@@ -377,10 +628,48 @@ def build_parser() -> argparse.ArgumentParser:
     unfollow_target = unfollow.add_mutually_exclusive_group(required=True)
     unfollow_target.add_argument("-s", type=int, metavar="TEMPORADA", help="Última temporada a revisar")
     unfollow_target.add_argument("--all", action="store_true", help="Quitar el límite y revisar todas")
+
+    movie = sub.add_parser(
+        "movie", parents=[common],
+        help="Películas: -d renombra a 'Nombre (Año)' + poster; -mv mueve a un género; -ls lista por género",
+        usage="TMDB movie -d CARPETA -n NOMBRE [-y AÑO] [--json]\n"
+              "       TMDB movie -mv CARPETA [-g GENERO] [--json]\n"
+              "       TMDB movie -ls [-g GENERO] [--refresh] [--no-posters] [-o ARCHIVO.json] [--json]")
+    movie_action = movie.add_mutually_exclusive_group(required=True)
+    movie_action.add_argument("-d", metavar="CARPETA",
+                              help="Renombrar esta carpeta a 'Nombre (Año)' y bajar el poster (acepta Tab)")
+    movie_action.add_argument("-mv", metavar="CARPETA",
+                              help="Mover esta carpeta a MOVIE_PATHS/<género> (acepta Tab)")
+    movie_action.add_argument("-ls", action="store_true", help="Listar las películas por género")
+    movie.add_argument("-n", metavar="NOMBRE", help="Con -d: nombre de la película (obligatorio)")
+    movie.add_argument("-y", type=int, metavar="AÑO", help="Con -d: año de estreno (opcional, ayuda a encontrarla)")
+    movie.add_argument("--refresh", action="store_true",
+                       help="Con -ls: vuelve a validar todo con TMDB (ignora data/movies.json)")
+    movie.add_argument("--no-posters", action="store_true", help="Con -ls: no bajar posters faltantes")
+    movie.add_argument("-o", "--out", metavar="ARCHIVO", help="Con -ls: exporta el resultado a un archivo JSON")
+    movie.add_argument("-g", metavar="GENERO",
+                       help="Con -mv: género destino (si no existe se crea; sin -g te deja elegir). "
+                            "Con -ls: solo ese género (acepta parte del nombre)")
+    movie.set_defaults(movie_parser=movie)
     return parser
 
 
+def check_movie_args(args) -> None:
+    error = args.movie_parser.error
+    if args.d is not None:
+        if not args.n:
+            error("-d necesita -n NOMBRE")
+        if args.g:
+            error("-g solo se usa con -mv o -ls")
+    elif args.n or args.y:
+        error("-n y -y solo se usan con -d")
+    if not args.ls and (args.refresh or args.no_posters or args.out):
+        error("--refresh, --no-posters y -o solo se usan con -ls")
+
+
 def main(argv: list[str] | None = None) -> int:
+    if argv is None:
+        argv = repair_windows_argv(sys.argv[1:])
     args = build_parser().parse_args(argv)
     as_json = getattr(args, "json", False)
     if as_json:
@@ -404,10 +693,19 @@ def main(argv: list[str] | None = None) -> int:
             result = cmd_fix(load_settings(), args.sn, args.id, args.search, as_json)
         elif args.command == "unfollow":
             result = cmd_unfollow(load_settings(), args.sn, None if args.all else args.s, as_json)
+        elif args.command == "movie":
+            check_movie_args(args)
+            if args.d is not None:
+                result = cmd_movie(load_settings(require_tv=False), args.d, args.n, args.y, as_json)
+            elif args.ls:
+                result = cmd_movie_list(load_settings(require_tv=False), args.g, as_json, args.refresh,
+                                        not args.no_posters, args.out)
+            else:
+                result = cmd_movie_move(load_settings(require_tv=False), args.mv, args.g, as_json)
         if as_json:
             sys.stdout.reconfigure(encoding="utf-8")
             print(json.dumps(result, ensure_ascii=False, indent=2))
-    except (AppError, ConfigError, TmdbError) as exc:
+    except (AppError, ConfigError, TmdbError, MovieError) as exc:
         console.print(f"[red]✘ {exc}")
         return 1
     except KeyboardInterrupt:

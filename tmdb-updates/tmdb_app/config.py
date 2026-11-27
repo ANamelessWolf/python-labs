@@ -23,7 +23,7 @@ class Settings:
     language: str
 
 
-def load_settings(path: Path = CONFIG_FILE) -> Settings:
+def load_settings(path: Path = CONFIG_FILE, require_tv: bool = True) -> Settings:
     if not path.exists():
         raise ConfigError(
             f"No existe {path}. Copia config/settings.example.json a config/settings.json y llena tu API key."
@@ -40,7 +40,7 @@ def load_settings(path: Path = CONFIG_FILE) -> Settings:
         raise ConfigError(f"TMDB.API_KEY esta vacio en {path}")
 
     tv_paths = [Path(p) for p in media.get("TV_PATHS", [])]
-    if not tv_paths:
+    if not tv_paths and require_tv:
         raise ConfigError(f"MEDIA.TV_PATHS esta vacio en {path}")
 
     return Settings(

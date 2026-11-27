@@ -10,6 +10,9 @@ REM   TMDB list                 -> lista de series
 REM   TMDB fix -sn "Serie"      -> recarga con el tmdbId del JSON (--id N / --search)
 REM   Cualquier subcomando + --json -> salida en JSON (TMDB updates --json)
 REM   TMDB unfollow -sn "Serie" -s 14 -> revisa solo hasta la temporada 14 (--all quita el limite)
+REM   TMDB movie -d "Carpeta" -n "Pelicula" -y 2012 -> renombra a "Pelicula (2012)" y baja folder.jpg/png
+REM   TMDB movie -mv "Carpeta" -g "Horror" -> mueve a MOVIE_PATHS\Horror (sin -g pregunta)
+REM   TMDB movie -ls [-g "Horror"] [-o archivo.json] -> lista por genero, valida con TMDB, baja posters faltantes
 
 setlocal
 SET "APP_DIR=Z:\dev\py\python-labs\tmdb-updates"

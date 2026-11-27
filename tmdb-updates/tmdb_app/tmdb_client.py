@@ -4,6 +4,8 @@ import time
 import requests
 
 MAX_ATTEMPTS = 5
+IMAGE_BASE_URL = "https://image.tmdb.org/t/p"
+IMAGE_TYPES = {"image/jpeg": ".jpg", "image/jpg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
 
 
 class TmdbError(Exception):
@@ -74,6 +76,36 @@ class TmdbClient:
         if not results and year:
             results = self._get("/search/tv", query=query).get("results", [])
         return results
+
+    def search_movie(self, query: str, year: int | None = None) -> list[dict]:
+        """Busca por año de estreno; si no hay nada prueba con cualquier fecha y luego sin año."""
+        if year:
+            for params in ({"primary_release_year": year}, {"year": year}):
+                results = self._get("/search/movie", query=query, **params).get("results", [])
+                if results:
+                    return results
+        return self._get("/search/movie", query=query).get("results", [])
+
+    def download_image(self, file_path: str, size: str = "original") -> tuple[bytes, str]:
+        """Descarga una imagen del CDN de TMDB (no usa API key). Regresa (bytes, extension)."""
+        url = f"{IMAGE_BASE_URL}/{size}{file_path}"
+        for attempt in range(MAX_ATTEMPTS):
+            try:
+                resp = requests.get(url, timeout=self.timeout * 3)
+            except requests.RequestException as exc:
+                if attempt == MAX_ATTEMPTS - 1:
+                    raise TmdbError(f"No se pudo descargar la imagen: {exc}") from None
+                time.sleep(1 + attempt)
+                continue
+            if resp.status_code >= 500 and attempt < MAX_ATTEMPTS - 1:
+                time.sleep(1 + attempt)
+                continue
+            if not resp.ok:
+                raise TmdbError(f"No se pudo descargar la imagen ({resp.status_code}): {url}")
+            content_type = resp.headers.get("Content-Type", "").split(";")[0].strip().lower()
+            ext = IMAGE_TYPES.get(content_type) or (file_path[file_path.rfind("."):].lower() if "." in file_path else ".jpg")
+            return resp.content, ".jpg" if ext == ".jpeg" else ext
+        raise TmdbError(f"No se pudo descargar la imagen: {url}")
 
     def get_tv(self, tv_id: int) -> dict:
         """Detalles de la serie + episodios de cada temporada en `season_data` {numero: season}."""

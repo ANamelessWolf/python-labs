@@ -15,7 +15,7 @@ Llena `config/settings.json`:
 | Clave | Descripción |
 |---|---|
 | `MEDIA.TV_PATHS` | Carpetas de bibliotecas de series (cada subcarpeta es una serie) |
-| `MEDIA.MOVIE_PATHS` | Reservado para películas (aún no se usa) |
+| `MEDIA.MOVIE_PATHS` | Carpetas de películas; cada subcarpeta es un género (`TMDB movie -mv`). `TMDB movie -d` también busca ahí |
 | `TMDB.API_KEY` | API key v3 o token v4 (Read Access Token) de TMDB |
 | `TMDB.LANGUAGE` | Idioma de títulos de episodio (default `en-US`) |
 
@@ -40,8 +40,90 @@ Llena `config/settings.json`:
 | `TMDB fix -sn "Serie" --search` | Busca en TMDB y te deja elegir de una lista |
 | `TMDB unfollow -sn "Simpsons" -s 14` | Revisa la serie solo hasta la temporada 14; las posteriores se ignoran en scans y reportes. Si queda `OK` se trata como terminada (el scan normal la omite) |
 | `TMDB unfollow -sn "Simpsons" --all` | Quita el límite y vuelve a revisar todas las temporadas |
+| `TMDB movie -d "Carpeta" -n "Película" -y 2012` | Renombra la carpeta a `Película (2012)` y guarda el poster de TMDB como `folder.jpg` / `folder.png` (`-y` es opcional) |
+| `TMDB movie -mv "Carpeta" -g "Horror"` | Mueve la carpeta a `MOVIE_PATHS\Horror` (crea el género si no existe; sin `-g` te deja elegir) |
+| `TMDB movie -ls` | Lista películas y colecciones por género (recursivo), valida los nombres con TMDB y baja los posters faltantes (`-g`, `-o archivo.json`, `--refresh`, `--no-posters`) |
 
 `-sn` acepta coincidencias parciales y no distingue mayúsculas; si varias series coinciden, te pregunta cuál.
+
+## Películas: `TMDB movie`
+
+```
+TMDB movie -d "Moonrise Kingdom (2012) (1080p BluRay x265 10bit EAC3 5.1 Silence)" -n "Moonrise Kingdom" -y 2012
+```
+
+- `-d`: la carpeta (relativa al directorio actual, absoluta, o dentro de `MOVIE_PATHS`). Se puede completar con Tab:
+  la `\` final y las comillas que deja el autocompletado de cmd / PowerShell se manejan bien.
+- `-n`: nombre de la película; es el que se usa para la carpeta (`:` pasa a ` -`, se quitan `<>"/\|?*`).
+- `-y`: año (opcional). Ayuda a elegir la película correcta; si TMDB tiene otro año, se usa el de TMDB y avisa.
+- La carpeta queda como `Nombre (YYYY)` y adentro se guarda el poster original como `folder.jpg` o `folder.png`
+  según el formato que entregue TMDB (si había un `folder.*` de otro formato, se borra).
+- Si la búsqueda o la descarga fallan, no se toca nada. Si la carpeta destino ya existe, termina con error.
+- Con `--json` imprime `{command, path, folder, previousPath, renamed, poster, tmdbId, tmdbTitle, year, warnings}`;
+  `path` es la ruta final de la carpeta.
+
+## Películas: `TMDB movie -mv`
+
+```
+G:\Vuze> TMDB movie -mv "Moonrise Kingdom (2012)" -g "Horror"
+```
+
+- Mueve la carpeta a `<MOVIE_PATHS>\<género>`. El género no distingue mayúsculas (`-g horror` usa `Horror`).
+- Si el género no existe, crea la carpeta (en el primer `MOVIE_PATHS` si hay varios).
+- Sin `-g` muestra los géneros numerados: elige un número o escribe un nombre nuevo.
+- En la misma unidad es un rename instantáneo; entre unidades (p. ej. `G:` → `M:`) copia con barra de progreso
+  y luego borra el original. Si la copia falla se borra la copia parcial y el original queda intacto.
+- Si ya existe una carpeta con ese nombre en el género, termina con error; si la película ya está ahí, no hace nada.
+- `-mv` acepta Tab igual que `-d`. `-d` y `-mv` no se combinan; `-g` solo va con `-mv`.
+- Con `--json` imprime `{command: "movie-move", path, folder, previousPath, genre, genrePath, createdGenre, moved}`;
+  `path` es la ruta final de la carpeta.
+
+## Películas: `TMDB movie -ls`
+
+```
+TMDB movie -ls                         todas, en árbol por género
+TMDB movie -ls -g horror               solo un género (acepta parte del nombre si no hay uno exacto)
+TMDB movie -ls -o M:\movies.json       además exporta todo a un archivo JSON
+TMDB movie -ls --refresh               vuelve a validar todo con TMDB
+TMDB movie -ls --no-posters            no baja posters
+```
+
+**Recursivo.** Dentro de cada género, una carpeta con videos es una *película*; una carpeta sin videos pero con
+subcarpetas de películas es una *colección* (`Star Wars\`, `DC Universe\Batman\…`), hasta 3 niveles. Se ignoran
+`Subs`, `Extras`, `Featurettes`, `Sample` y similares.
+
+**Validación con TMDB (cache en `data/movies.json`).** Cada carpeta se busca en TMDB una sola vez; las siguientes
+corridas usan el cache y solo consultan las carpetas nuevas o renombradas (el cache es por nombre de carpeta, así que
+mover una película de género no la vuelve a buscar). Cada entrada guarda `genre`, `collection` y `path`, que se
+actualizan en cada corrida. Si borras o renombras una carpeta, su entrada se quita del cache en la siguiente
+corrida (con `-g`, solo las de ese género; nunca se tocan entradas de un disco de `MOVIE_PATHS` que no esté
+conectado). Las quitadas se listan al final y en el JSON (`removedFromCache`). Estados:
+
+| Estado | Significado |
+|---|---|
+| `OK` | La carpeta ya es `Título (Año)` y coincide con TMDB (título o título original) |
+| `RENAME` (`→ Nombre (Año)`) | Match seguro, pero el nombre no tiene el formato; muestra el nombre sugerido para `TMDB movie -d` |
+| `REVIEW` (`¿Nombre (Año)?`) | Match dudoso: el título no es exacto, el año no cuadra, o hay varias películas con ese título (`Poltergeist` sin año) |
+| `NOT_FOUND` | Sin resultados en TMDB |
+
+Un match es *seguro* cuando el título coincide exacto y el año de la carpeta cuadra (±1), o cuando no hay año y solo
+existe una película con ese título (o una es mucho más conocida que las demás). Las colecciones se validan por
+contenido: la colección de TMDB debe incluir al menos la mitad de tus películas de esa carpeta (así `Animation\Spiderman`
+es la de Spider-Verse y no la de Raimi, y `Pixar` no se vuelve la colección de Monsters, Inc.).
+
+**Posters.** A las películas y colecciones con match seguro que no tienen `folder.jpg/.jpeg/.png` se les baja el
+poster de TMDB (`+poster`). Nunca reemplaza uno existente. Los `REVIEW` no reciben poster.
+
+**Corregir un match.** En `data/movies.json`, en la entrada de la carpeta (llave = nombre en minúsculas) pon
+`"tmdbId": N`, `"manual": true` y borra `"title"`; en la siguiente corrida se recarga con ese id y `--refresh` ya no
+la toca. Funciona igual para `collections`.
+
+**JSON** (`--json` a stdout, `-o archivo.json` a un archivo; se pueden usar juntos):
+`{command: "movie-list", generated, cache, totalMovies, totalCollections, totalGenres, status: {OK, RENAME, REVIEW,
+NOT_FOUND}, removedFromCache, withoutPoster, postersCreated, genres: [{name, path, count, items}]}`. Cada item es
+`{type: "movie", name, path, status, year, suggestedName, tmdbId, tmdbTitle, tmdbOriginalTitle, tmdbYear, poster,
+posterCreated, error}` o `{type: "collection", name, path, status, tmdbId, tmdbName, count, poster, posterCreated,
+error, items}`.
 
 ## Salida en JSON
 
@@ -49,7 +131,7 @@ Todos los subcomandos aceptan `--json` (después del subcomando): `TMDB status -
 `TMDB scan -sn "Rivals" --json`… En vez de las tablas, imprime en stdout un JSON con los mismos datos; el progreso,
 los avisos y los errores van a stderr, y si algo falla termina con código 1. Lo usan los nodos TMDB de Node Board.
 
-Todos traen `command`, `lastScan` (ISO) y `totalSeries`. Además:
+Todos traen `command`; los de series también `lastScan` (ISO) y `totalSeries`. Además:
 
 | Comando | Campos |
 |---|---|
@@ -60,6 +142,9 @@ Todos traen `command`, `lastScan` (ISO) y `totalSeries`. Además:
 | `list` | `series`: `[{name, library, libraryPath, status, tag, tmdbId, tmdbName, nameDiffers}]` |
 | `scan` | `scanned`, `skipped`, `tags`, `removed`, `unavailable`, `problems` y, con `-sn`, `series` |
 | `fix` / `unfollow` | `message` y `series` (cómo quedó) |
+| `movie -ls` | `command: "movie-list"`, `totalMovies`, `totalCollections`, `status`, `genres` con películas y colecciones (ver arriba) |
+| `movie -mv` | `command: "movie-move"`, `path` (ruta final), `folder`, `previousPath`, `genre`, `genrePath`, `createdGenre`, `moved` |
+| `movie -d` | `path` (ruta final de la carpeta), `folder`, `previousPath`, `renamed`, `poster`, `tmdbId`, `tmdbTitle`, `year`, `warnings` |
 
 Una *serie* tiene `name`, `path`, `library`, `libraryPath`, `status` (de TMDB), `tag`, `finished`, `tmdbId`, `tmdbName`,
 `firstAirDate`, `maxSeason`, `lastScan`, `error`, `sizeBytes`, `size` (`"4.7 GB"`), `looseFiles` y `seasons`
@@ -80,6 +165,8 @@ detalle, `episodes`: `[{code, number, name, airDate, daysFromToday, state}]`).
 | `tmdb_app/store.py` | Lectura y escritura de `data/library.json` |
 | `tmdb_app/report.py` | Reportes de consola con rich |
 | `tmdb_app/export.py` | Salida en JSON (`--json`): los mismos datos que los reportes |
+| `tmdb_app/movie.py` | Comando `movie`: `-d` renombra y guarda el poster, `-mv` mueve a un género |
+| `tmdb_app/movielib.py` | `movie -ls`: recorre la biblioteca, cache `data/movies.json`, validación con TMDB y posters |
 
 ## Estructura esperada
 
